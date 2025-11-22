@@ -1,0 +1,25 @@
+{
+  "name": "mc-bot-afk",
+  "version": "1.0.0",
+  "description": "Bot AFK para Minecraft usando Mineflayer",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "keywords": [
+    "minecraft",
+    "bot",
+    "mineflayer",
+    "afk"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "mineflayer": "^4.15.0",
+    "mineflayer-pathfinder": "^2.4.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
+
