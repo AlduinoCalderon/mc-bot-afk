@@ -19,8 +19,9 @@ function createBot() {
   bot = mineflayer.createBot({
     host: SERVER_HOST,
     port: SERVER_PORT,
-    username: USERNAME,
-    version: '1.21.10'
+    username: USERNAME
+    // No especificar versión para que mineflayer la detecte automáticamente del servidor
+    // Esto evita problemas de validación con versiones específicas como 1.21.10
   });
 
   // Cargar plugin de pathfinder
