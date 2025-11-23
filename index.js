@@ -36,12 +36,17 @@ function createBot() {
   });
 
   bot.on('spawn', () => {
-    console.log(`[${new Date().toLocaleTimeString()}] Bot hizo spawn en ${bot.entity.position.x.toFixed(2)}, ${bot.entity.position.y.toFixed(2)}, ${bot.entity.position.z.toFixed(2)}`);
+    if (bot && bot.entity && bot.entity.position) {
+      console.log(`[${new Date().toLocaleTimeString()}] Bot hizo spawn en ${bot.entity.position.x.toFixed(2)}, ${bot.entity.position.y.toFixed(2)}, ${bot.entity.position.z.toFixed(2)}`);
+    } else {
+      console.log(`[${new Date().toLocaleTimeString()}] Bot hizo spawn`);
+    }
     startJumping();
   });
 
   bot.on('kicked', (reason) => {
-    console.log(`[${new Date().toLocaleTimeString()}] Bot fue expulsado: ${reason}`);
+    const reasonText = typeof reason === 'string' ? reason : JSON.stringify(reason);
+    console.log(`[${new Date().toLocaleTimeString()}] Bot fue expulsado: ${reasonText}`);
     cleanup();
     scheduleReconnect();
   });
