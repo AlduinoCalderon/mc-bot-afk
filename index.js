@@ -4,7 +4,7 @@ const SERVER_HOST = 'Bots-b2YN.aternos.me';
 const SERVER_PORT = 61601;
 const USERNAME = 'AldoBot';
 const JUMP_INTERVAL = 20000; // 20 segundos en milisegundos
-const RECONNECT_DELAY = 5000; // 5 segundos antes de reconectar
+const RECONNECT_DELAY = 10000; // 10 segundos antes de reconectar (aumentado para evitar "logged in from another location")
 
 let bot = null;
 let jumpInterval = null;
@@ -36,6 +36,11 @@ function createBot() {
   });
 
   bot.on('spawn', () => {
+    // Asegurar que el bot esté quieto
+    if (bot && bot.clearControlStates) {
+      bot.clearControlStates();
+    }
+    
     if (bot && bot.entity && bot.entity.position) {
       console.log(`[${new Date().toLocaleTimeString()}] Bot hizo spawn en ${bot.entity.position.x.toFixed(2)}, ${bot.entity.position.y.toFixed(2)}, ${bot.entity.position.z.toFixed(2)}`);
     } else {
@@ -97,6 +102,16 @@ function cleanup() {
 }
 
 function scheduleReconnect() {
+  // Asegurar que el bot anterior esté completamente cerrado antes de reconectar
+  if (bot) {
+    try {
+      bot.end();
+    } catch (e) {
+      // Ignorar errores al cerrar
+    }
+    bot = null;
+  }
+  
   console.log(`[${new Date().toLocaleTimeString()}] Reconectando en ${RECONNECT_DELAY / 1000} segundos...`);
   setTimeout(() => {
     console.log(`[${new Date().toLocaleTimeString()}] Intentando reconectar...`);
