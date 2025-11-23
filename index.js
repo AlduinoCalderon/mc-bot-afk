@@ -22,10 +22,10 @@ function createBot() {
       host: SERVER_HOST,
       port: SERVER_PORT,
       username: USERNAME,
+      version: '1.21.10', // Especificar versión explícitamente para usar protocolo 773
       viewDistance: 'tiny', // Reducir distancia de vista para ahorrar memoria
       chatLengthLimit: 100, // Limitar longitud de chat
       colorsEnabled: false // Desactivar colores para ahorrar memoria
-      // No especificar versión para que mineflayer la detecte automáticamente del servidor
     });
 
     // Cargar plugin de pathfinder
