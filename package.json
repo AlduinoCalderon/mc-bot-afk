@@ -15,6 +15,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "minecraft-data": "^3.62.0",
     "mineflayer": "^4.33.0",
     "mineflayer-pathfinder": "^2.4.0"
   },
@@ -22,4 +23,3 @@
     "node": ">=22.0.0"
   }
 }
-

@@ -16,33 +16,24 @@ let jumpInterval = null;
 let isMoving = false;
 
 function createBot() {
-  // Crear el bot sin especificar versión para que detecte automáticamente
-  bot = mineflayer.createBot({
-    host: SERVER_HOST,
-    port: SERVER_PORT,
-    username: USERNAME,
-    // No especificar versión - dejar que mineflayer la detecte del servidor
-    // Optimizaciones de memoria para Render
-    viewDistance: 'tiny', // Reducir distancia de vista
-    chatLengthLimit: 100, // Limitar longitud de chat
-    colorsEnabled: false, // Desactivar colores
-    physicsEnabled: true, // Mantener física básica
-    maxCatchupTicks: 2 // Reducir ticks de catchup
-  });
-  
-  // Interceptar y modificar el evento de verificación de versión
-  if (bot._client) {
-    const originalEmit = bot._client.emit;
-    bot._client.emit = function(event, ...args) {
-      // Interceptar el evento de verificación de versión y modificarlo
-      if (event === 'error' && args[0] && args[0].message && 
-          args[0].message.includes('version 1.21.10')) {
-        // Ignorar el error de versión y continuar
-        console.log(`[${new Date().toLocaleTimeString()}] Ignorando error de versión, continuando...`);
-        return;
-      }
-      return originalEmit.apply(this, [event, ...args]);
-    };
+  try {
+    bot = mineflayer.createBot({
+      host: SERVER_HOST,
+      port: SERVER_PORT,
+      username: USERNAME,
+      // Especificar versión 1.21.10 explícitamente
+      version: '1.21.10',
+      // Optimizaciones de memoria para Render
+      viewDistance: 'tiny', // Reducir distancia de vista
+      chatLengthLimit: 100, // Limitar longitud de chat
+      colorsEnabled: false, // Desactivar colores
+      physicsEnabled: true, // Mantener física básica
+      maxCatchupTicks: 2 // Reducir ticks de catchup
+    });
+  } catch (err) {
+    console.log(`[${new Date().toLocaleTimeString()}] Error al crear bot: ${err.message}`);
+    scheduleReconnect();
+    return;
   }
 
   // Cargar plugin de pathfinder
