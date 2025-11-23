@@ -153,10 +153,316 @@ function scheduleReconnect() {
   }, RECONNECT_DELAY);
 }
 
-// Crear servidor HTTP simple para mantener el servicio activo en Render
-const server = http.createServer((req, res) => {
-  res.writeHead(200, { 'Content-Type': 'text/plain' });
-  res.end('Bot AFK activo\n');
+// Función para parsear el body de las peticiones POST
+function parseBody(req) {
+  return new Promise((resolve, reject) => {
+    let body = '';
+    req.on('data', chunk => {
+      body += chunk.toString();
+    });
+    req.on('end', () => {
+      try {
+        resolve(body ? JSON.parse(body) : {});
+      } catch (e) {
+        resolve({});
+      }
+    });
+    req.on('error', reject);
+  });
+}
+
+// Función para enviar respuesta JSON
+function sendJSON(res, statusCode, data) {
+  res.writeHead(statusCode, { 'Content-Type': 'application/json' });
+  res.end(JSON.stringify(data, null, 2));
+}
+
+// Crear servidor HTTP con endpoints para controlar el bot
+const server = http.createServer(async (req, res) => {
+  const url = new URL(req.url, `http://${req.headers.host}`);
+  const path = url.pathname;
+  const method = req.method;
+
+  // CORS headers
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
+
+  if (method === 'OPTIONS') {
+    res.writeHead(200);
+    res.end();
+    return;
+  }
+
+  try {
+    // GET / - Información del bot
+    if (path === '/' && method === 'GET') {
+      sendJSON(res, 200, {
+        status: 'active',
+        message: 'Bot AFK API - Usa /status para ver el estado del bot',
+        endpoints: {
+          'GET /status': 'Estado del bot',
+          'POST /move': 'Mover el bot (forward, back, left, right, jump, sprint)',
+          'POST /look': 'Mirar hacia una dirección (yaw, pitch)',
+          'POST /attack': 'Atacar entidad cercana',
+          'POST /chat': 'Enviar mensaje al chat',
+          'POST /place': 'Colocar bloque (x, y, z, blockName)',
+          'POST /dig': 'Minar bloque (x, y, z)',
+          'POST /use': 'Usar item en la mano',
+          'GET /inventory': 'Ver inventario'
+        }
+      });
+      return;
+    }
+
+    // GET /status - Estado del bot
+    if (path === '/status' && method === 'GET') {
+      if (!bot || !bot.entity) {
+        sendJSON(res, 200, {
+          connected: false,
+          message: 'Bot no conectado'
+        });
+        return;
+      }
+
+      sendJSON(res, 200, {
+        connected: true,
+        username: bot.username,
+        position: bot.entity.position ? {
+          x: bot.entity.position.x.toFixed(2),
+          y: bot.entity.position.y.toFixed(2),
+          z: bot.entity.position.z.toFixed(2)
+        } : null,
+        health: bot.health || 0,
+        food: bot.food || 0,
+        gameMode: bot.game.gameMode,
+        ping: bot.player ? bot.player.ping : null
+      });
+      return;
+    }
+
+    // POST /move - Controlar movimiento
+    if (path === '/move' && method === 'POST') {
+      if (!bot || !bot.entity) {
+        sendJSON(res, 400, { error: 'Bot no conectado' });
+        return;
+      }
+
+      const body = await parseBody(req);
+      const { action, duration = 1000 } = body;
+
+      const validActions = ['forward', 'back', 'left', 'right', 'jump', 'sprint', 'sneak'];
+      
+      if (!action || !validActions.includes(action)) {
+        sendJSON(res, 400, {
+          error: 'Acción inválida',
+          validActions: validActions
+        });
+        return;
+      }
+
+      bot.setControlState(action, true);
+      setTimeout(() => {
+        if (bot) bot.setControlState(action, false);
+      }, duration);
+
+      sendJSON(res, 200, {
+        success: true,
+        action: action,
+        duration: duration
+      });
+      return;
+    }
+
+    // POST /look - Mirar hacia una dirección
+    if (path === '/look' && method === 'POST') {
+      if (!bot || !bot.entity) {
+        sendJSON(res, 400, { error: 'Bot no conectado' });
+        return;
+      }
+
+      const body = await parseBody(req);
+      const { yaw, pitch } = body;
+
+      if (yaw === undefined || pitch === undefined) {
+        sendJSON(res, 400, { error: 'Se requieren yaw y pitch' });
+        return;
+      }
+
+      bot.look(yaw, pitch, true);
+
+      sendJSON(res, 200, {
+        success: true,
+        yaw: yaw,
+        pitch: pitch
+      });
+      return;
+    }
+
+    // POST /attack - Atacar entidad cercana
+    if (path === '/attack' && method === 'POST') {
+      if (!bot || !bot.entity) {
+        sendJSON(res, 400, { error: 'Bot no conectado' });
+        return;
+      }
+
+      const entity = bot.nearestEntity();
+      if (!entity) {
+        sendJSON(res, 200, { success: false, message: 'No hay entidades cercanas' });
+        return;
+      }
+
+      bot.attack(entity);
+      sendJSON(res, 200, {
+        success: true,
+        target: entity.name || 'unknown',
+        distance: bot.entity.position.distanceTo(entity.position).toFixed(2)
+      });
+      return;
+    }
+
+    // POST /chat - Enviar mensaje al chat
+    if (path === '/chat' && method === 'POST') {
+      if (!bot || !bot.entity) {
+        sendJSON(res, 400, { error: 'Bot no conectado' });
+        return;
+      }
+
+      const body = await parseBody(req);
+      const { message } = body;
+
+      if (!message) {
+        sendJSON(res, 400, { error: 'Se requiere el campo "message"' });
+        return;
+      }
+
+      bot.chat(message);
+      sendJSON(res, 200, {
+        success: true,
+        message: message
+      });
+      return;
+    }
+
+    // POST /place - Colocar bloque
+    if (path === '/place' && method === 'POST') {
+      if (!bot || !bot.entity) {
+        sendJSON(res, 400, { error: 'Bot no conectado' });
+        return;
+      }
+
+      const body = await parseBody(req);
+      const { x, y, z, blockName } = body;
+
+      if (x === undefined || y === undefined || z === undefined || !blockName) {
+        sendJSON(res, 400, { error: 'Se requieren x, y, z y blockName' });
+        return;
+      }
+
+      const targetBlock = bot.blockAt(bot.vec3(x, y, z));
+      if (!targetBlock) {
+        sendJSON(res, 400, { error: 'Bloque no válido en esa posición' });
+        return;
+      }
+
+      try {
+        await bot.placeBlock(targetBlock, bot.heldItem);
+        sendJSON(res, 200, {
+          success: true,
+          position: { x, y, z },
+          block: blockName
+        });
+      } catch (err) {
+        sendJSON(res, 400, { error: err.message });
+      }
+      return;
+    }
+
+    // POST /dig - Minar bloque
+    if (path === '/dig' && method === 'POST') {
+      if (!bot || !bot.entity) {
+        sendJSON(res, 400, { error: 'Bot no conectado' });
+        return;
+      }
+
+      const body = await parseBody(req);
+      const { x, y, z } = body;
+
+      if (x === undefined || y === undefined || z === undefined) {
+        sendJSON(res, 400, { error: 'Se requieren x, y, z' });
+        return;
+      }
+
+      const targetBlock = bot.blockAt(bot.vec3(x, y, z));
+      if (!targetBlock) {
+        sendJSON(res, 400, { error: 'Bloque no válido en esa posición' });
+        return;
+      }
+
+      try {
+        await bot.dig(targetBlock);
+        sendJSON(res, 200, {
+          success: true,
+          position: { x, y, z }
+        });
+      } catch (err) {
+        sendJSON(res, 400, { error: err.message });
+      }
+      return;
+    }
+
+    // POST /use - Usar item en la mano
+    if (path === '/use' && method === 'POST') {
+      if (!bot || !bot.entity) {
+        sendJSON(res, 400, { error: 'Bot no conectado' });
+        return;
+      }
+
+      try {
+        bot.activateItem();
+        sendJSON(res, 200, {
+          success: true,
+          message: 'Item activado'
+        });
+      } catch (err) {
+        sendJSON(res, 400, { error: err.message });
+      }
+      return;
+    }
+
+    // GET /inventory - Ver inventario
+    if (path === '/inventory' && method === 'GET') {
+      if (!bot || !bot.entity) {
+        sendJSON(res, 400, { error: 'Bot no conectado' });
+        return;
+      }
+
+      const items = [];
+      for (let i = 0; i < bot.inventory.items().length; i++) {
+        const item = bot.inventory.items()[i];
+        items.push({
+          slot: i,
+          name: item.name,
+          count: item.count,
+          displayName: item.displayName
+        });
+      }
+
+      sendJSON(res, 200, {
+        items: items,
+        heldItem: bot.heldItem ? {
+          name: bot.heldItem.name,
+          count: bot.heldItem.count
+        } : null
+      });
+      return;
+    }
+
+    // 404 - Ruta no encontrada
+    sendJSON(res, 404, { error: 'Endpoint no encontrado' });
+  } catch (err) {
+    sendJSON(res, 500, { error: err.message });
+  }
 });
 
 server.listen(HTTP_PORT, () => {
