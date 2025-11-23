@@ -1,10 +1,12 @@
 const mineflayer = require('mineflayer');
+const http = require('http');
 
 const SERVER_HOST = 'Bots-b2YN.aternos.me';
 const SERVER_PORT = 61601;
 const USERNAME = 'AldoBot';
 const JUMP_INTERVAL = 20000; // 20 segundos en milisegundos
 const RECONNECT_DELAY = 10000; // 10 segundos antes de reconectar (aumentado para evitar "logged in from another location")
+const HTTP_PORT = process.env.PORT || 10000; // Puerto para mantener el servicio activo en Render
 
 let bot = null;
 let jumpInterval = null;
@@ -151,6 +153,16 @@ function scheduleReconnect() {
   }, RECONNECT_DELAY);
 }
 
+// Crear servidor HTTP simple para mantener el servicio activo en Render
+const server = http.createServer((req, res) => {
+  res.writeHead(200, { 'Content-Type': 'text/plain' });
+  res.end('Bot AFK activo\n');
+});
+
+server.listen(HTTP_PORT, () => {
+  console.log(`[${new Date().toLocaleTimeString()}] Servidor HTTP escuchando en puerto ${HTTP_PORT}`);
+});
+
 // Iniciar el bot
 console.log(`[${new Date().toLocaleTimeString()}] Iniciando bot AFK...`);
 createBot();
@@ -160,13 +172,17 @@ process.on('SIGINT', () => {
   console.log(`[${new Date().toLocaleTimeString()}] Cerrando bot...`);
   cleanup();
   if (bot) bot.end();
-  process.exit(0);
+  server.close(() => {
+    process.exit(0);
+  });
 });
 
 process.on('SIGTERM', () => {
   console.log(`[${new Date().toLocaleTimeString()}] Cerrando bot...`);
   cleanup();
   if (bot) bot.end();
-  process.exit(0);
+  server.close(() => {
+    process.exit(0);
+  });
 });
 
