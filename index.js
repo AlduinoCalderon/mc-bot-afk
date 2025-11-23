@@ -20,7 +20,9 @@ function createBot() {
     host: SERVER_HOST,
     port: SERVER_PORT,
     username: USERNAME,
-    version: '1.21.10',
+    // Usar false para desactivar verificación de versión y permitir que mineflayer
+    // detecte automáticamente la versión del servidor (1.21.10 / protocolo 773)
+    version: false,
     // Optimizaciones de memoria para Render
     viewDistance: 'tiny', // Reducir distancia de vista
     chatLengthLimit: 100, // Limitar longitud de chat
