@@ -1,0 +1,343 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Minecraft Bot Control Panel</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <div class="container">
+        <header>
+            <h1>🤖 Minecraft Bot Control Panel</h1>
+            <div class="status-indicator">
+                <span id="ws-status" class="status-badge disconnected">Desconectado</span>
+            </div>
+        </header>
+
+        <div class="main-content">
+            <!-- Bot List Section -->
+            <section class="bot-list-section">
+                <div class="section-header">
+                    <h2>Bots Activos</h2>
+                    <button id="refresh-bots" class="btn btn-primary">🔄 Actualizar</button>
+                </div>
+                <div id="bots-container" class="bots-grid">
+                    <!-- Bots will be dynamically added here -->
+                </div>
+                <div id="no-bots" class="empty-state" style="display: none;">
+                    <p>No hay bots activos. Crea uno nuevo para comenzar.</p>
+                </div>
+            </section>
+
+            <!-- Create Bot Section -->
+            <section class="create-bot-section">
+                <div class="section-header">
+                    <h2>Crear Nuevo Bot</h2>
+                    <button type="button" id="btn-show-history" class="btn btn-primary">📋 Ver Historial</button>
+                </div>
+                <form id="create-bot-form" class="bot-form">
+                    <div class="form-group">
+                        <label for="bot-name">Nombre del Bot *</label>
+                        <input type="text" id="bot-name" name="name" required placeholder="MiBot">
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="server-host">Servidor *</label>
+                            <input type="text" id="server-host" name="serverHost" required placeholder="example.com" list="server-history-list">
+                            <datalist id="server-history-list"></datalist>
+                            <small style="color: var(--text-secondary); font-size: 0.8rem;">Los servidores usados aparecerán aquí</small>
+                        </div>
+                        <div class="form-group">
+                            <label for="server-port">Puerto</label>
+                            <input type="number" id="server-port" name="serverPort" value="25565" placeholder="25565">
+                        </div>
+                    </div>
+                    <div class="form-row">
+                        <div class="form-group">
+                            <label for="username">Username</label>
+                            <input type="text" id="username" name="username" placeholder="Mismo que nombre">
+                        </div>
+                        <div class="form-group">
+                            <label for="version">Versión de Minecraft (1.8 - 1.21.8)</label>
+                            <select id="version" name="version">
+                                <option value="" selected>Auto-detectar (Recomendado)</option>
+                                <optgroup label="1.21.x (Más Reciente)">
+                                    <option value="1.21.8">1.21.8</option>
+                                    <option value="1.21.7">1.21.7</option>
+                                    <option value="1.21.6">1.21.6</option>
+                                    <option value="1.21.5">1.21.5</option>
+                                    <option value="1.21.4">1.21.4</option>
+                                    <option value="1.21.3">1.21.3</option>
+                                    <option value="1.21.2">1.21.2</option>
+                                    <option value="1.21.1">1.21.1</option>
+                                    <option value="1.21">1.21</option>
+                                </optgroup>
+                                <optgroup label="1.20.x">
+                                    <option value="1.20.6">1.20.6</option>
+                                    <option value="1.20.5">1.20.5</option>
+                                    <option value="1.20.4">1.20.4</option>
+                                    <option value="1.20.3">1.20.3</option>
+                                    <option value="1.20.2">1.20.2</option>
+                                    <option value="1.20.1">1.20.1</option>
+                                    <option value="1.20">1.20</option>
+                                </optgroup>
+                                <optgroup label="1.19.x">
+                                    <option value="1.19.4">1.19.4</option>
+                                    <option value="1.19.3">1.19.3</option>
+                                    <option value="1.19.2">1.19.2</option>
+                                    <option value="1.19.1">1.19.1</option>
+                                    <option value="1.19">1.19</option>
+                                </optgroup>
+                                <optgroup label="1.18.x">
+                                    <option value="1.18.2">1.18.2</option>
+                                    <option value="1.18.1">1.18.1</option>
+                                    <option value="1.18">1.18</option>
+                                </optgroup>
+                                <optgroup label="1.17.x">
+                                    <option value="1.17.1">1.17.1</option>
+                                    <option value="1.17">1.17</option>
+                                </optgroup>
+                                <optgroup label="1.16.x">
+                                    <option value="1.16.5">1.16.5</option>
+                                    <option value="1.16.4">1.16.4</option>
+                                    <option value="1.16.3">1.16.3</option>
+                                    <option value="1.16.2">1.16.2</option>
+                                    <option value="1.16.1">1.16.1</option>
+                                    <option value="1.16">1.16</option>
+                                </optgroup>
+                                <optgroup label="1.15.x">
+                                    <option value="1.15.2">1.15.2</option>
+                                    <option value="1.15.1">1.15.1</option>
+                                    <option value="1.15">1.15</option>
+                                </optgroup>
+                                <optgroup label="1.14.x">
+                                    <option value="1.14.4">1.14.4</option>
+                                    <option value="1.14.3">1.14.3</option>
+                                    <option value="1.14.2">1.14.2</option>
+                                    <option value="1.14.1">1.14.1</option>
+                                    <option value="1.14">1.14</option>
+                                </optgroup>
+                                <optgroup label="1.13.x">
+                                    <option value="1.13.2">1.13.2</option>
+                                    <option value="1.13.1">1.13.1</option>
+                                    <option value="1.13">1.13</option>
+                                </optgroup>
+                                <optgroup label="1.12.x">
+                                    <option value="1.12.2">1.12.2</option>
+                                    <option value="1.12.1">1.12.1</option>
+                                    <option value="1.12">1.12</option>
+                                </optgroup>
+                                <optgroup label="1.11.x">
+                                    <option value="1.11.2">1.11.2</option>
+                                    <option value="1.11.1">1.11.1</option>
+                                    <option value="1.11">1.11</option>
+                                </optgroup>
+                                <optgroup label="1.10.x">
+                                    <option value="1.10.2">1.10.2</option>
+                                    <option value="1.10.1">1.10.1</option>
+                                    <option value="1.10">1.10</option>
+                                </optgroup>
+                                <optgroup label="1.9.x">
+                                    <option value="1.9.4">1.9.4</option>
+                                    <option value="1.9.3">1.9.3</option>
+                                    <option value="1.9.2">1.9.2</option>
+                                    <option value="1.9.1">1.9.1</option>
+                                    <option value="1.9">1.9</option>
+                                </optgroup>
+                                <optgroup label="1.8.x (Más Antigua)">
+                                    <option value="1.8.9">1.8.9</option>
+                                    <option value="1.8.8">1.8.8</option>
+                                    <option value="1.8.7">1.8.7</option>
+                                    <option value="1.8.6">1.8.6</option>
+                                    <option value="1.8.5">1.8.5</option>
+                                    <option value="1.8.4">1.8.4</option>
+                                    <option value="1.8.3">1.8.3</option>
+                                    <option value="1.8.2">1.8.2</option>
+                                    <option value="1.8.1">1.8.1</option>
+                                    <option value="1.8">1.8</option>
+                                </optgroup>
+                            </select>
+                        </div>
+                    </div>
+                    <button type="submit" class="btn btn-success">➕ Crear Bot</button>
+                </form>
+                
+                <!-- Server History Section -->
+                <div id="server-history-section" class="server-history-section" style="display: none; margin-top: 30px;">
+                    <div class="section-header">
+                        <h3>Historial de Servidores</h3>
+                        <div>
+                            <button type="button" id="btn-export-csv" class="btn btn-primary">📥 Exportar CSV</button>
+                            <button type="button" id="btn-import-csv" class="btn btn-primary">📤 Importar CSV</button>
+                            <input type="file" id="csv-file-input" accept=".csv" style="display: none;">
+                        </div>
+                    </div>
+                    <div id="servers-history-list" class="servers-history-list">
+                        <!-- Servers will be loaded here -->
+                    </div>
+                </div>
+            </section>
+
+            <!-- Teleoperation Types Info -->
+            <section class="teleop-info-section">
+                <h2>Tipos de Teleoperación Disponibles</h2>
+                <div class="teleop-grid">
+                    <div class="teleop-card">
+                        <div class="teleop-icon">🚶</div>
+                        <h3>Movimiento</h3>
+                        <p>Control de movimiento básico: adelante, atrás, izquierda, derecha, saltar, correr, agacharse</p>
+                    </div>
+                    <div class="teleop-card">
+                        <div class="teleop-icon">👀</div>
+                        <h3>Vista</h3>
+                        <p>Control de dirección de la mirada (yaw y pitch) para orientar el bot</p>
+                    </div>
+                    <div class="teleop-card">
+                        <div class="teleop-icon">💬</div>
+                        <h3>Chat</h3>
+                        <p>Enviar mensajes al chat del servidor</p>
+                    </div>
+                    <div class="teleop-card">
+                        <div class="teleop-icon">⚔️</div>
+                        <h3>Combate</h3>
+                        <p>Atacar entidades cercanas automáticamente</p>
+                    </div>
+                    <div class="teleop-card">
+                        <div class="teleop-icon">🏗️</div>
+                        <h3>Construcción</h3>
+                        <p>Colocar bloques en posiciones específicas</p>
+                    </div>
+                    <div class="teleop-card">
+                        <div class="teleop-icon">⛏️</div>
+                        <h3>Minería</h3>
+                        <p>Minar/destruir bloques en posiciones específicas</p>
+                    </div>
+                    <div class="teleop-card">
+                        <div class="teleop-icon">📦</div>
+                        <h3>Inventario</h3>
+                        <p>Ver y gestionar el inventario del bot</p>
+                    </div>
+                    <div class="teleop-card">
+                        <div class="teleop-icon">🛠️</div>
+                        <h3>Items</h3>
+                        <p>Usar items que el bot tiene en la mano</p>
+                    </div>
+                </div>
+            </section>
+        </div>
+    </div>
+
+    <!-- Bot Control Modal -->
+    <div id="bot-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 id="modal-bot-name">Control de Bot</h2>
+                <button class="modal-close" onclick="closeBotModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div class="bot-status-info">
+                    <div class="status-item">
+                        <span class="status-label">Estado:</span>
+                        <span id="modal-bot-status" class="status-value">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Posición:</span>
+                        <span id="modal-bot-position" class="status-value">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Salud:</span>
+                        <span id="modal-bot-health" class="status-value">-</span>
+                    </div>
+                    <div class="status-item">
+                        <span class="status-label">Comida:</span>
+                        <span id="modal-bot-food" class="status-value">-</span>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h3>Controles de Movimiento</h3>
+                    <div class="movement-controls">
+                        <div class="movement-grid">
+                            <button class="control-btn" data-action="forward" data-bot-id="">↑ Adelante</button>
+                            <button class="control-btn" data-action="back" data-bot-id="">↓ Atrás</button>
+                            <button class="control-btn" data-action="left" data-bot-id="">← Izquierda</button>
+                            <button class="control-btn" data-action="right" data-bot-id="">→ Derecha</button>
+                            <button class="control-btn" data-action="jump" data-bot-id="">🦘 Saltar</button>
+                            <button class="control-btn" data-action="sprint" data-bot-id="">🏃 Correr</button>
+                            <button class="control-btn" data-action="sneak" data-bot-id="">🦘 Agacharse</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h3>Acciones Rápidas</h3>
+                    <div class="quick-actions">
+                        <button class="action-btn" id="btn-attack" data-bot-id="">⚔️ Atacar</button>
+                        <button class="action-btn" id="btn-inventory" data-bot-id="">📦 Inventario</button>
+                        <button class="action-btn" id="btn-use" data-bot-id="">🛠️ Usar Item</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h3>Chat</h3>
+                    <div class="chat-control">
+                        <input type="text" id="chat-input" placeholder="Escribe un mensaje..." class="chat-input">
+                        <button class="btn btn-primary" id="btn-chat-send" data-bot-id="">Enviar</button>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <h3>Construcción/Minería</h3>
+                    <div class="block-controls">
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>X</label>
+                                <input type="number" id="block-x" placeholder="0" class="block-input">
+                            </div>
+                            <div class="form-group">
+                                <label>Y</label>
+                                <input type="number" id="block-y" placeholder="0" class="block-input">
+                            </div>
+                            <div class="form-group">
+                                <label>Z</label>
+                                <input type="number" id="block-z" placeholder="0" class="block-input">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label>Bloque (para colocar)</label>
+                                <input type="text" id="block-name" placeholder="stone" class="block-input">
+                            </div>
+                        </div>
+                        <div class="block-actions">
+                            <button class="btn btn-primary" id="btn-place" data-bot-id="">🏗️ Colocar</button>
+                            <button class="btn btn-warning" id="btn-dig" data-bot-id="">⛏️ Minar</button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="control-section">
+                    <button class="btn btn-danger" id="btn-delete-bot" data-bot-id="">🗑️ Eliminar Bot</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Inventory Modal -->
+    <div id="inventory-modal" class="modal" style="display: none;">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>Inventario</h2>
+                <button class="modal-close" onclick="closeInventoryModal()">×</button>
+            </div>
+            <div class="modal-body">
+                <div id="inventory-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <script src="app.js"></script>
+</body>
+</html>
+

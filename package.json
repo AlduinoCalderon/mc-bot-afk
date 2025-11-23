@@ -4,7 +4,9 @@
   "description": "Bot AFK para Minecraft usando Mineflayer",
   "main": "index.js",
   "scripts": {
-    "start": "node index.js"
+    "start": "node index.js",
+    "dev": "nodemon index.js",
+    "prod": "node index.js"
   },
   "keywords": [
     "minecraft",
@@ -16,9 +18,14 @@
   "license": "MIT",
   "dependencies": {
     "minecraft-data": "^3.101.0",
-    "mineflayer": "^4.33.0"
+    "mineflayer": "^4.33.0",
+    "uuid": "^9.0.1",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "nodemon": "^3.0.2"
   },
   "engines": {
-    "node": ">=22.0.0"
+    "node": ">=18.0.0"
   }
 }

@@ -1,83 +1,302 @@
-# API del Bot AFK - Documentación
+# Minecraft Bot API - Documentation
 
-El bot ahora tiene una API REST completa para controlarlo remotamente.
+A multi-bot API service for managing Minecraft bots with health monitoring, keep-awake functionality, and individual bot control.
 
-## Endpoints Disponibles
+## Features
+
+- **Multi-Bot Support**: Create and manage multiple bots simultaneously
+- **Health Monitoring**: Keep-awake endpoints for self and other Render services
+- **Ping/Pong**: Simple health check endpoint
+- **Bot Management**: Create, list, get, and delete bots via API
+- **Individual Bot Control**: Control each bot independently via unique IDs
+- **Local Storage**: Persistent bot data stored in `bots-data.json`
+- **Auto-Reconnect**: Automatic reconnection on disconnect
+
+## Base Endpoints
 
 ### GET `/`
-Información general y lista de endpoints disponibles.
+Get API information and available endpoints.
 
-**Ejemplo:**
-```bash
-curl https://tu-servicio.onrender.com/
-```
-
----
-
-### GET `/status`
-Obtiene el estado actual del bot (conectado, posición, salud, etc.).
-
-**Respuesta:**
+**Response:**
 ```json
 {
-  "connected": true,
-  "username": "AldoBot",
-  "position": {
-    "x": "63.52",
-    "y": "190.31",
-    "z": "230.66"
-  },
-  "health": 20,
-  "food": 20,
-  "gameMode": "survival",
-  "ping": 45
+  "status": "active",
+  "message": "Minecraft Bot API Service",
+  "version": "2.0.0",
+  "endpoints": { ... },
+  "stats": {
+    "totalBots": 2,
+    "connectedBots": 1
+  }
 }
 ```
 
 ---
 
-### POST `/move`
-Controla el movimiento del bot.
+### GET `/health`
+Health check endpoint.
 
-**Parámetros:**
-- `action` (string, requerido): `forward`, `back`, `left`, `right`, `jump`, `sprint`, `sneak`
-- `duration` (number, opcional): Duración en milisegundos (default: 1000)
-
-**Ejemplo:**
-```bash
-curl -X POST https://tu-servicio.onrender.com/move \
-  -H "Content-Type: application/json" \
-  -d '{"action": "forward", "duration": 2000}'
+**Response:**
+```json
+{
+  "status": "healthy",
+  "timestamp": "2024-01-01T12:00:00.000Z",
+  "uptime": 3600,
+  "bots": {
+    "total": 2,
+    "connected": 1,
+    "disconnected": 0,
+    "reconnecting": 1
+  }
+}
 ```
 
 ---
 
-### POST `/look`
-Hace que el bot mire hacia una dirección específica.
+### GET `/health/monitor`
+Keep-awake monitor endpoint. Monitors self and other configured services.
 
-**Parámetros:**
-- `yaw` (number, requerido): Rotación horizontal en radianes (0 = norte, π/2 = este)
-- `pitch` (number, requerido): Rotación vertical en radianes (-π/2 = arriba, π/2 = abajo)
+**Environment Variable:** `MONITOR_SERVICES` (comma-separated URLs)
 
-**Ejemplo:**
-```bash
-curl -X POST https://tu-servicio.onrender.com/look \
-  -H "Content-Type: application/json" \
-  -d '{"yaw": 1.57, "pitch": 0}'
+**Example:** `MONITOR_SERVICES=https://service1.onrender.com,https://service2.onrender.com`
+
+**Response:**
+```json
+{
+  "status": "monitoring",
+  "timestamp": "2024-01-01T12:00:00.000Z",
+  "services": [
+    {
+      "service": "self",
+      "url": "http://localhost:10000",
+      "status": "healthy",
+      "timestamp": "2024-01-01T12:00:00.000Z"
+    },
+    {
+      "service": "https://service1.onrender.com",
+      "url": "https://service1.onrender.com",
+      "status": "healthy",
+      "httpStatus": 200,
+      "timestamp": "2024-01-01T12:00:00.000Z"
+    }
+  ],
+  "summary": {
+    "total": 2,
+    "healthy": 2,
+    "unhealthy": 0
+  }
+}
 ```
 
 ---
 
-### POST `/attack`
-Ataca la entidad más cercana al bot.
+### GET `/ping`
+Ping endpoint (returns pong).
 
-**Ejemplo:**
-```bash
-curl -X POST https://tu-servicio.onrender.com/attack \
-  -H "Content-Type: application/json"
+**Response:**
+```json
+{
+  "pong": true,
+  "timestamp": "2024-01-01T12:00:00.000Z"
+}
 ```
 
-**Respuesta:**
+---
+
+## Bot Management Endpoints
+
+### GET `/bots`
+List all bots.
+
+**Response:**
+```json
+{
+  "bots": [
+    {
+      "id": "550e8400-e29b-41d4-a716-446655440000",
+      "name": "MyBot",
+      "connected": true,
+      "status": "connected",
+      "username": "MyBot",
+      "position": { "x": "63.52", "y": "190.31", "z": "230.66" },
+      "health": 20,
+      "food": 20,
+      "gameMode": "survival",
+      "ping": 45,
+      "serverHost": "example.com",
+      "serverPort": 25565,
+      "version": "1.21",
+      "createdAt": "2024-01-01T10:00:00.000Z",
+      "lastConnected": "2024-01-01T12:00:00.000Z",
+      "connectedCount": 5
+    }
+  ],
+  "count": 1,
+  "connected": 1
+}
+```
+
+---
+
+### POST `/bots`
+Create a new bot.
+
+**Request Body:**
+```json
+{
+  "name": "MyBot",
+  "serverHost": "example.com",
+  "serverPort": 25565,
+  "username": "MyBot",
+  "version": "1.21",
+  "authKey": null
+}
+```
+
+**Required Fields:**
+- `name`: Bot name
+- `serverHost`: Server hostname or IP
+
+**Optional Fields:**
+- `serverPort`: Server port (default: 25565)
+- `username`: Bot username (default: same as name)
+- `version`: Minecraft version (default: "1.21")
+- `authKey`: Authentication key for cracked servers (future use)
+
+**Response:**
+```json
+{
+  "success": true,
+  "bot": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "name": "MyBot",
+    "connected": false,
+    "status": "disconnected",
+    "serverHost": "example.com",
+    "serverPort": 25565,
+    "version": "1.21",
+    "createdAt": "2024-01-01T12:00:00.000Z"
+  },
+  "controlUrl": "/bots/550e8400-e29b-41d4-a716-446655440000"
+}
+```
+
+---
+
+### GET `/bots/:id`
+Get specific bot status.
+
+**Response:**
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "name": "MyBot",
+  "connected": true,
+  "status": "connected",
+  "username": "MyBot",
+  "position": { "x": "63.52", "y": "190.31", "z": "230.66" },
+  "health": 20,
+  "food": 20,
+  "gameMode": "survival",
+  "ping": 45,
+  "serverHost": "example.com",
+  "serverPort": 25565,
+  "version": "1.21",
+  "createdAt": "2024-01-01T10:00:00.000Z",
+  "lastConnected": "2024-01-01T12:00:00.000Z",
+  "connectedCount": 5
+}
+```
+
+---
+
+### DELETE `/bots/:id`
+Delete a bot.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Bot deleted"
+}
+```
+
+---
+
+## Bot Control Endpoints
+
+All bot control endpoints require the bot to be connected.
+
+### POST `/bots/:id/move`
+Control bot movement.
+
+**Request Body:**
+```json
+{
+  "action": "forward",
+  "duration": 2000
+}
+```
+
+**Actions:** `forward`, `back`, `left`, `right`, `jump`, `sprint`, `sneak`
+
+**Response:**
+```json
+{
+  "success": true,
+  "action": "forward",
+  "duration": 2000
+}
+```
+
+---
+
+### POST `/bots/:id/look`
+Control bot look direction.
+
+**Request Body:**
+```json
+{
+  "yaw": 1.57,
+  "pitch": 0
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "yaw": 1.57,
+  "pitch": 0
+}
+```
+
+---
+
+### POST `/bots/:id/chat`
+Send chat message.
+
+**Request Body:**
+```json
+{
+  "message": "Hello from API!"
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Hello from API!"
+}
+```
+
+---
+
+### POST `/bots/:id/attack`
+Attack nearest entity.
+
+**Response:**
 ```json
 {
   "success": true,
@@ -88,76 +307,10 @@ curl -X POST https://tu-servicio.onrender.com/attack \
 
 ---
 
-### POST `/chat`
-Envía un mensaje al chat del servidor.
+### GET `/bots/:id/inventory`
+Get bot inventory.
 
-**Parámetros:**
-- `message` (string, requerido): Mensaje a enviar
-
-**Ejemplo:**
-```bash
-curl -X POST https://tu-servicio.onrender.com/chat \
-  -H "Content-Type: application/json" \
-  -d '{"message": "¡Hola desde la API!"}'
-```
-
----
-
-### POST `/place`
-Coloca un bloque en la posición especificada.
-
-**Parámetros:**
-- `x` (number, requerido): Coordenada X
-- `y` (number, requerido): Coordenada Y
-- `z` (number, requerido): Coordenada Z
-- `blockName` (string, requerido): Nombre del bloque (ej: "stone", "dirt", "wood")
-
-**Ejemplo:**
-```bash
-curl -X POST https://tu-servicio.onrender.com/place \
-  -H "Content-Type: application/json" \
-  -d '{"x": 64, "y": 70, "z": 230, "blockName": "stone"}'
-```
-
----
-
-### POST `/dig`
-Mina/destruye un bloque en la posición especificada.
-
-**Parámetros:**
-- `x` (number, requerido): Coordenada X
-- `y` (number, requerido): Coordenada Y
-- `z` (number, requerido): Coordenada Z
-
-**Ejemplo:**
-```bash
-curl -X POST https://tu-servicio.onrender.com/dig \
-  -H "Content-Type: application/json" \
-  -d '{"x": 64, "y": 70, "z": 230}'
-```
-
----
-
-### POST `/use`
-Usa el item que el bot tiene en la mano.
-
-**Ejemplo:**
-```bash
-curl -X POST https://tu-servicio.onrender.com/use \
-  -H "Content-Type: application/json"
-```
-
----
-
-### GET `/inventory`
-Obtiene el inventario completo del bot.
-
-**Ejemplo:**
-```bash
-curl https://tu-servicio.onrender.com/inventory
-```
-
-**Respuesta:**
+**Response:**
 ```json
 {
   "items": [
@@ -175,31 +328,130 @@ curl https://tu-servicio.onrender.com/inventory
 }
 ```
 
-## Ejemplos de Uso
+---
 
-### Mover el bot hacia adelante por 5 segundos
-```bash
-curl -X POST https://tu-servicio.onrender.com/move \
-  -H "Content-Type: application/json" \
-  -d '{"action": "forward", "duration": 5000}'
+### POST `/bots/:id/place`
+Place a block.
+
+**Request Body:**
+```json
+{
+  "x": 64,
+  "y": 70,
+  "z": 230,
+  "blockName": "stone"
+}
 ```
 
-### Hacer que el bot salte
+**Response:**
+```json
+{
+  "success": true,
+  "position": { "x": 64, "y": 70, "z": 230 },
+  "block": "stone"
+}
+```
+
+---
+
+### POST `/bots/:id/dig`
+Dig/destroy a block.
+
+**Request Body:**
+```json
+{
+  "x": 64,
+  "y": 70,
+  "z": 230
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "position": { "x": 64, "y": 70, "z": 230 }
+}
+```
+
+---
+
+### POST `/bots/:id/use`
+Use item in hand.
+
+**Response:**
+```json
+{
+  "success": true,
+  "message": "Item activated"
+}
+```
+
+---
+
+## Usage Examples
+
+### Create a Bot
 ```bash
-curl -X POST https://tu-servicio.onrender.com/move \
+curl -X POST http://localhost:10000/bots \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "TestBot",
+    "serverHost": "example.com",
+    "serverPort": 25565,
+    "version": "1.21"
+  }'
+```
+
+### List All Bots
+```bash
+curl http://localhost:10000/bots
+```
+
+### Get Bot Status
+```bash
+curl http://localhost:10000/bots/550e8400-e29b-41d4-a716-446655440000
+```
+
+### Make Bot Jump
+```bash
+curl -X POST http://localhost:10000/bots/550e8400-e29b-41d4-a716-446655440000/move \
   -H "Content-Type: application/json" \
   -d '{"action": "jump", "duration": 500}'
 ```
 
-### Verificar estado del bot
+### Health Check
 ```bash
-curl https://tu-servicio.onrender.com/status
+curl http://localhost:10000/health
 ```
 
-## Notas
+### Monitor Services (Keep-Awake)
+```bash
+curl http://localhost:10000/health/monitor
+```
 
-- Todos los endpoints requieren que el bot esté conectado
-- Los endpoints devuelven errores JSON si el bot no está conectado o si hay problemas
-- La API incluye CORS habilitado para uso desde navegadores
-- Los tiempos están en milisegundos
+### Ping
+```bash
+curl http://localhost:10000/ping
+```
 
+## Environment Variables
+
+- `PORT`: HTTP server port (default: 10000)
+- `MONITOR_SERVICES`: Comma-separated list of service URLs to monitor (optional)
+
+## Data Storage
+
+Bot data is stored locally in `bots-data.json`. This file contains:
+- Bot IDs and configurations
+- Connection status
+- Connection count
+- Last connected timestamp
+
+## Notes
+
+- All endpoints return JSON
+- CORS is enabled for all origins
+- Bots automatically reconnect on disconnect
+- Each bot has a unique UUID for identification
+- Bot data persists across restarts via `bots-data.json`

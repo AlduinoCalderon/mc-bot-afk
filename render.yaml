@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: mc-bot-afk
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        fromService:
+          type: web
+          name: mc-bot-afk
+          property: port
+    plan: starter
+

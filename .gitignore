@@ -1,8 +1,14 @@
 node_modules/
 npm-debug.log
 .env
+.env.local
 .DS_Store
 *.log
 .cursor/mcp.json
 MCP_CONFIG.md
+bots-data.json
+servers-history.json
+*.csv
+.vscode/
+.idea/
 
