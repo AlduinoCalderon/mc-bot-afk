@@ -8,8 +8,15 @@ const RECONNECT_DELAY = 10000; // 10 segundos antes de reconectar (aumentado par
 
 let bot = null;
 let jumpInterval = null;
+let isReconnecting = false; // Bandera para evitar múltiples reconexiones simultáneas
 
 function createBot() {
+  // Evitar crear múltiples bots simultáneamente
+  if (bot || isReconnecting) {
+    console.log(`[${new Date().toLocaleTimeString()}] Ya hay una conexión o reconexión en progreso, ignorando...`);
+    return;
+  }
+
   try {
     bot = mineflayer.createBot({
       host: SERVER_HOST,
@@ -27,12 +34,17 @@ function createBot() {
     });
   } catch (err) {
     console.log(`[${new Date().toLocaleTimeString()}] Error al crear bot: ${err.message}`);
+    bot = null;
     scheduleReconnect();
     return;
   }
 
   bot.on('login', () => {
-    console.log(`[${new Date().toLocaleTimeString()}] Bot conectado como ${bot.username}`);
+    if (bot && bot.username) {
+      console.log(`[${new Date().toLocaleTimeString()}] Bot conectado como ${bot.username}`);
+    } else {
+      console.log(`[${new Date().toLocaleTimeString()}] Bot conectado como ${USERNAME}`);
+    }
   });
 
   bot.on('spawn', () => {
@@ -65,7 +77,10 @@ function createBot() {
   bot.on('end', () => {
     console.log(`[${new Date().toLocaleTimeString()}] Conexión terminada`);
     cleanup();
-    scheduleReconnect();
+    // No reconectar desde 'end' si ya se está reconectando desde otro evento
+    if (!isReconnecting) {
+      scheduleReconnect();
+    }
   });
 
   bot.on('death', () => {
@@ -102,9 +117,18 @@ function cleanup() {
 }
 
 function scheduleReconnect() {
+  // Evitar múltiples reconexiones simultáneas
+  if (isReconnecting) {
+    console.log(`[${new Date().toLocaleTimeString()}] Ya hay una reconexión programada, ignorando...`);
+    return;
+  }
+
+  isReconnecting = true;
+
   // Asegurar que el bot anterior esté completamente cerrado antes de reconectar
   if (bot) {
     try {
+      bot.removeAllListeners(); // Remover todos los listeners para evitar eventos duplicados
       bot.end();
     } catch (e) {
       // Ignorar errores al cerrar
@@ -114,6 +138,7 @@ function scheduleReconnect() {
   
   console.log(`[${new Date().toLocaleTimeString()}] Reconectando en ${RECONNECT_DELAY / 1000} segundos...`);
   setTimeout(() => {
+    isReconnecting = false;
     console.log(`[${new Date().toLocaleTimeString()}] Intentando reconectar...`);
     createBot();
   }, RECONNECT_DELAY);
