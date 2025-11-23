@@ -47,19 +47,6 @@ function createBot() {
     }
   });
 
-  bot.on('spawn', () => {
-    // Asegurar que el bot esté quieto
-    if (bot && bot.clearControlStates) {
-      bot.clearControlStates();
-    }
-    
-    if (bot && bot.entity && bot.entity.position) {
-      console.log(`[${new Date().toLocaleTimeString()}] Bot hizo spawn en ${bot.entity.position.x.toFixed(2)}, ${bot.entity.position.y.toFixed(2)}, ${bot.entity.position.z.toFixed(2)}`);
-    } else {
-      console.log(`[${new Date().toLocaleTimeString()}] Bot hizo spawn`);
-    }
-    startJumping();
-  });
 
   bot.on('kicked', (reason) => {
     const reasonText = typeof reason === 'string' ? reason : JSON.stringify(reason);
@@ -84,9 +71,29 @@ function createBot() {
   });
 
   bot.on('death', () => {
-    console.log(`[${new Date().toLocaleTimeString()}] Bot murió, reconectando...`);
-    cleanup();
-    scheduleReconnect();
+    console.log(`[${new Date().toLocaleTimeString()}] Bot murió, esperando respawn...`);
+    // No reconectar, el bot respawneará automáticamente
+    // Solo limpiar el intervalo de salto temporalmente
+    if (jumpInterval) {
+      clearInterval(jumpInterval);
+      jumpInterval = null;
+    }
+  });
+
+  // Cuando el bot respawnea después de morir, reiniciar el salto
+  bot.on('spawn', () => {
+    // Asegurar que el bot esté quieto
+    if (bot && bot.clearControlStates) {
+      bot.clearControlStates();
+    }
+    
+    if (bot && bot.entity && bot.entity.position) {
+      console.log(`[${new Date().toLocaleTimeString()}] Bot hizo spawn en ${bot.entity.position.x.toFixed(2)}, ${bot.entity.position.y.toFixed(2)}, ${bot.entity.position.z.toFixed(2)}`);
+    } else {
+      console.log(`[${new Date().toLocaleTimeString()}] Bot hizo spawn`);
+    }
+    // Reiniciar el salto cuando respawnea
+    startJumping();
   });
 }
 
