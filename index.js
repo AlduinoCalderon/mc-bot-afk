@@ -21,8 +21,9 @@ function createBot() {
       host: SERVER_HOST,
       port: SERVER_PORT,
       username: USERNAME,
-      // Especificar versión 1.21.10 explícitamente
-      version: '1.21.10',
+      // Usar versión 1.21 (protocolo 767) que es compatible con 1.21.10
+      // El protocolo 773 (1.21.10) aún no está soportado en minecraft-protocol
+      version: '1.21',
       // Optimizaciones de memoria para Render
       viewDistance: 'tiny', // Reducir distancia de vista
       chatLengthLimit: 100, // Limitar longitud de chat
