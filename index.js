@@ -20,9 +20,9 @@ function createBot() {
     host: SERVER_HOST,
     port: SERVER_PORT,
     username: USERNAME,
-    // Usar false para desactivar verificación de versión y permitir que mineflayer
-    // detecte automáticamente la versión del servidor (1.21.10 / protocolo 773)
-    version: false,
+    // Especificar protocolo directamente para 1.21.10 (protocolo 773)
+    // Esto evita problemas de detección automática de versión
+    version: '1.21.10',
     // Optimizaciones de memoria para Render
     viewDistance: 'tiny', // Reducir distancia de vista
     chatLengthLimit: 100, // Limitar longitud de chat
@@ -30,6 +30,16 @@ function createBot() {
     physicsEnabled: true, // Mantener física básica
     maxCatchupTicks: 2 // Reducir ticks de catchup
   });
+  
+  // Desactivar verificación de versión después de crear el bot
+  if (bot._client && bot._client.version) {
+    // Forzar el protocolo 773 (1.21.10)
+    try {
+      bot._client.version = '1.21.10';
+    } catch (e) {
+      // Ignorar si no se puede modificar
+    }
+  }
 
   // Cargar plugin de pathfinder
   bot.loadPlugin(pathfinder);
