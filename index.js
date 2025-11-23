@@ -13,28 +13,24 @@ const RECONNECT_DELAY = 5000; // 5 segundos antes de reconectar
 
 let bot = null;
 let jumpInterval = null;
-let arrivalCheckInterval = null;
 let isMoving = false;
 
 function createBot() {
-  try {
-    bot = mineflayer.createBot({
-      host: SERVER_HOST,
-      port: SERVER_PORT,
-      username: USERNAME,
-      version: '1.21.10', // Especificar versión explícitamente para usar protocolo 773
-      viewDistance: 'tiny', // Reducir distancia de vista para ahorrar memoria
-      chatLengthLimit: 100, // Limitar longitud de chat
-      colorsEnabled: false // Desactivar colores para ahorrar memoria
-    });
+  bot = mineflayer.createBot({
+    host: SERVER_HOST,
+    port: SERVER_PORT,
+    username: USERNAME,
+    version: '1.21.10',
+    // Optimizaciones de memoria para Render
+    viewDistance: 'tiny', // Reducir distancia de vista
+    chatLengthLimit: 100, // Limitar longitud de chat
+    colorsEnabled: false, // Desactivar colores
+    physicsEnabled: true, // Mantener física básica
+    maxCatchupTicks: 2 // Reducir ticks de catchup
+  });
 
-    // Cargar plugin de pathfinder
-    bot.loadPlugin(pathfinder);
-  } catch (err) {
-    console.log(`[${new Date().toLocaleTimeString()}] Error al crear bot: ${err.message}`);
-    scheduleReconnect();
-    return;
-  }
+  // Cargar plugin de pathfinder
+  bot.loadPlugin(pathfinder);
 
   bot.on('login', () => {
     console.log(`[${new Date().toLocaleTimeString()}] Bot conectado como ${bot.username}`);
@@ -53,12 +49,7 @@ function createBot() {
   });
 
   bot.on('error', (err) => {
-    // Filtrar errores de protocolo conocidos para evitar spam de logs
-    if (err.message && err.message.includes('protocol')) {
-      console.log(`[${new Date().toLocaleTimeString()}] Error de protocolo: ${err.message}`);
-    } else {
-      console.log(`[${new Date().toLocaleTimeString()}] Error: ${err.message}`);
-    }
+    console.log(`[${new Date().toLocaleTimeString()}] Error: ${err.message}`);
     cleanup();
     scheduleReconnect();
   });
@@ -100,16 +91,10 @@ function moveToTarget() {
     const goal = new GoalNear(TARGET_X, TARGET_Y, TARGET_Z, 1);
     bot.pathfinder.setGoal(goal);
 
-    // Verificar cuando llegue al destino
-    if (arrivalCheckInterval) {
-      clearInterval(arrivalCheckInterval);
-    }
-    arrivalCheckInterval = setInterval(() => {
+    // Verificar cuando llegue al destino (intervalo más largo para reducir CPU)
+    const checkArrival = setInterval(() => {
       if (!bot || !bot.entity) {
-        if (arrivalCheckInterval) {
-          clearInterval(arrivalCheckInterval);
-          arrivalCheckInterval = null;
-        }
+        clearInterval(checkArrival);
         return;
       }
 
@@ -123,16 +108,13 @@ function moveToTarget() {
       if (currentDistance < 1.0) {
         console.log(`[${new Date().toLocaleTimeString()}] Bot llegó a la posición objetivo`);
         isMoving = false;
-        if (arrivalCheckInterval) {
-          clearInterval(arrivalCheckInterval);
-          arrivalCheckInterval = null;
-        }
+        clearInterval(checkArrival);
         // Asegurar que el bot se quede quieto
         if (bot && bot.clearControlStates) {
           bot.clearControlStates();
         }
       }
-    }, 2000); // Aumentar intervalo para reducir uso de CPU
+    }, 2000); // Aumentar intervalo para reducir uso de CPU/memoria
   } catch (err) {
     console.log(`[${new Date().toLocaleTimeString()}] Error al mover: ${err.message}`);
     isMoving = false;
@@ -171,19 +153,7 @@ function cleanup() {
     clearInterval(jumpInterval);
     jumpInterval = null;
   }
-  if (arrivalCheckInterval) {
-    clearInterval(arrivalCheckInterval);
-    arrivalCheckInterval = null;
-  }
   isMoving = false;
-  // Limpiar referencias para ayudar al garbage collector
-  if (bot && bot.pathfinder && bot.pathfinder.isMoving) {
-    try {
-      bot.pathfinder.setGoal(null);
-    } catch (e) {
-      // Ignorar errores al limpiar
-    }
-  }
 }
 
 function scheduleReconnect() {
@@ -202,18 +172,14 @@ createBot();
 process.on('SIGINT', () => {
   console.log(`[${new Date().toLocaleTimeString()}] Cerrando bot...`);
   cleanup();
-  if (bot && bot.end) {
-    bot.end();
-  }
+  if (bot) bot.end();
   process.exit(0);
 });
 
 process.on('SIGTERM', () => {
   console.log(`[${new Date().toLocaleTimeString()}] Cerrando bot...`);
   cleanup();
-  if (bot && bot.end) {
-    bot.end();
-  }
+  if (bot) bot.end();
   process.exit(0);
 });
 

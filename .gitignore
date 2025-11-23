@@ -3,4 +3,6 @@ npm-debug.log
 .env
 .DS_Store
 *.log
+.cursor/mcp.json
+MCP_CONFIG.md
 
