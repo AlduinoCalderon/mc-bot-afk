@@ -11,4 +11,6 @@ servers-history.json
 *.csv
 .vscode/
 .idea/
+# Render API Keys - NO commitees este archivo
+render-api-keys.json
 

@@ -1,0 +1,28 @@
+{
+  "workspaces": {
+    "workspace-1": {
+      "name": "Nombre del Workspace",
+      "workspaceId": "tea-XXXXX",
+      "email": "tu-email@example.com",
+      "apiKey": "rnd_TU_API_KEY_AQUI",
+      "description": "Descripción del workspace",
+      "lastUpdated": "2024-11-23",
+      "services": [
+        {
+          "name": "mc-bot-afk",
+          "serviceId": "srv-XXXXX",
+          "url": "https://tu-servicio.onrender.com",
+          "status": "active"
+        }
+      ]
+    }
+  },
+  "currentWorkspace": "workspace-1",
+  "notes": [
+    "Copia este archivo a render-api-keys.json y completa con tus datos",
+    "Las API keys son sensibles - NO commitees render-api-keys.json",
+    "Cada workspace tiene su propia API key",
+    "Si cambias de workspace, actualiza 'currentWorkspace'"
+  ]
+}
+
