@@ -1323,6 +1323,91 @@ const server = http.createServer(async (req, res) => {
         }
         return;
       }
+
+      // GET /bots/:id/world - Get world data for teleoperation
+      if (subPath === 'world' && method === 'GET') {
+        if (!botManager.bot || !botManager.bot.entity) {
+          sendJSON(res, 400, { error: 'Bot not connected' });
+          return;
+        }
+
+        try {
+          const bot = botManager.bot;
+          const pos = bot.entity.position;
+          const radius = 16; // View radius in blocks
+          
+          // Get nearby blocks
+          const blocks = [];
+          for (let x = -radius; x <= radius; x++) {
+            for (let y = -radius; y <= radius; y++) {
+              for (let z = -radius; z <= radius; z++) {
+                const blockPos = bot.vec3(
+                  Math.floor(pos.x) + x,
+                  Math.floor(pos.y) + y,
+                  Math.floor(pos.z) + z
+                );
+                const block = bot.blockAt(blockPos);
+                if (block && block.name !== 'air' && block.name !== 'cave_air' && block.name !== 'void_air') {
+                  blocks.push({
+                    x: blockPos.x,
+                    y: blockPos.y,
+                    z: blockPos.z,
+                    name: block.name,
+                    displayName: block.displayName
+                  });
+                }
+              }
+            }
+          }
+
+          // Get nearby entities
+          const entities = [];
+          const nearbyEntities = Object.values(bot.entities);
+          nearbyEntities.forEach(entity => {
+            if (entity && entity.position) {
+              const distance = pos.distanceTo(entity.position);
+              if (distance <= radius * 2) {
+                entities.push({
+                  id: entity.id,
+                  name: entity.name || 'unknown',
+                  position: {
+                    x: entity.position.x.toFixed(2),
+                    y: entity.position.y.toFixed(2),
+                    z: entity.position.z.toFixed(2)
+                  },
+                  distance: distance.toFixed(2),
+                  type: entity.type || 'unknown'
+                });
+              }
+            }
+          });
+
+          // Get bot's look direction
+          const yaw = bot.entity.yaw || 0;
+          const pitch = bot.entity.pitch || 0;
+
+          sendJSON(res, 200, {
+            bot: {
+              position: {
+                x: pos.x.toFixed(2),
+                y: pos.y.toFixed(2),
+                z: pos.z.toFixed(2)
+              },
+              yaw: yaw.toFixed(2),
+              pitch: pitch.toFixed(2),
+              health: bot.health || 0,
+              food: bot.food || 0
+            },
+            blocks: blocks,
+            entities: entities,
+            radius: radius
+          });
+        } catch (err) {
+          console.error(`[${new Date().toLocaleTimeString()}] [${botManager.name}] Error getting world data:`, err);
+          sendJSON(res, 500, { error: err.message });
+        }
+        return;
+      }
     }
 
     // 404 - Not found
@@ -1377,7 +1462,7 @@ function handleWebSocketMessage(ws, data) {
   switch (data.type) {
     case 'bot_control':
       // Handle bot control commands via WebSocket
-      const { botId, action, command, message, x, y, z, blockName } = data;
+      const { botId, action, command, message, x, y, z, blockName, yaw, pitch, duration } = data;
       const botManager = bots.get(botId);
       
       if (!botManager) {
@@ -1394,10 +1479,16 @@ function handleWebSocketMessage(ws, data) {
         switch (action) {
           case 'move':
             if (command) {
+              const moveDuration = duration || 100;
               botManager.bot.setControlState(command, true);
               setTimeout(() => {
                 if (botManager.bot) botManager.bot.setControlState(command, false);
-              }, 1000);
+              }, moveDuration);
+            }
+            break;
+          case 'look':
+            if (yaw !== undefined && pitch !== undefined) {
+              botManager.bot.look(yaw, pitch, true);
             }
             break;
           case 'chat':
@@ -1421,6 +1512,88 @@ function handleWebSocketMessage(ws, data) {
         broadcastBotStatus(botId);
       } catch (err) {
         console.error(`[${new Date().toLocaleTimeString()}] WebSocket bot_control error:`, err);
+        ws.send(JSON.stringify({ type: 'error', message: err.message }));
+      }
+      break;
+    
+    case 'request_world_data':
+      // Client requests world data for a bot
+      const worldBotId = data.botId;
+      const worldBotManager = bots.get(worldBotId);
+      
+      if (!worldBotManager || !worldBotManager.bot || !worldBotManager.bot.entity) {
+        ws.send(JSON.stringify({ type: 'error', message: 'Bot not connected' }));
+        return;
+      }
+
+      try {
+        const bot = worldBotManager.bot;
+        const pos = bot.entity.position;
+        const radius = 16;
+        
+        const blocks = [];
+        for (let x = -radius; x <= radius; x++) {
+          for (let y = -radius; y <= radius; y++) {
+            for (let z = -radius; z <= radius; z++) {
+              const blockPos = bot.vec3(
+                Math.floor(pos.x) + x,
+                Math.floor(pos.y) + y,
+                Math.floor(pos.z) + z
+              );
+              const block = bot.blockAt(blockPos);
+              if (block && block.name !== 'air' && block.name !== 'cave_air' && block.name !== 'void_air') {
+                blocks.push({
+                  x: blockPos.x,
+                  y: blockPos.y,
+                  z: blockPos.z,
+                  name: block.name,
+                  displayName: block.displayName
+                });
+              }
+            }
+          }
+        }
+
+        const entities = [];
+        const nearbyEntities = Object.values(bot.entities);
+        nearbyEntities.forEach(entity => {
+          if (entity && entity.position) {
+            const distance = pos.distanceTo(entity.position);
+            if (distance <= radius * 2) {
+              entities.push({
+                id: entity.id,
+                name: entity.name || 'unknown',
+                position: {
+                  x: entity.position.x.toFixed(2),
+                  y: entity.position.y.toFixed(2),
+                  z: entity.position.z.toFixed(2)
+                },
+                distance: distance.toFixed(2),
+                type: entity.type || 'unknown'
+              });
+            }
+          }
+        });
+
+        ws.send(JSON.stringify({
+          type: 'world_data',
+          botId: worldBotId,
+          bot: {
+            position: {
+              x: pos.x.toFixed(2),
+              y: pos.y.toFixed(2),
+              z: pos.z.toFixed(2)
+            },
+            yaw: (bot.entity.yaw || 0).toFixed(2),
+            pitch: (bot.entity.pitch || 0).toFixed(2),
+            health: bot.health || 0,
+            food: bot.food || 0
+          },
+          blocks: blocks,
+          entities: entities
+        }));
+      } catch (err) {
+        console.error(`[${new Date().toLocaleTimeString()}] WebSocket world_data error:`, err);
         ws.send(JSON.stringify({ type: 'error', message: err.message }));
       }
       break;

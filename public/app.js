@@ -68,6 +68,12 @@ function handleWebSocketMessage(data) {
                 closeBotModal();
             }
             break;
+        case 'world_data':
+            // Handle world data for teleoperation
+            if (teleopActive && data.botId === teleopBotId) {
+                updateTeleopWorld(data);
+            }
+            break;
         case 'error':
             alert(`Error: ${data.message}`);
             break;
@@ -200,12 +206,19 @@ function openBotModal(botId) {
     
     loadBotStatus(botId);
     setInterval(() => loadBotStatus(botId), 2000); // Update every 2 seconds
+    
+    // If teleop is active, switch to new bot
+    const container = document.getElementById('teleop-container');
+    if (teleopActive && container && container.style.display !== 'none') {
+        startTeleop(botId);
+    }
 }
 
 function closeBotModal() {
     const modal = document.getElementById('bot-modal');
     modal.style.display = 'none';
     currentBotId = null;
+    stopTeleop();
 }
 
 function loadBotStatus(botId) {
@@ -560,10 +573,382 @@ document.getElementById('btn-show-history')?.addEventListener('click', () => {
     }
 });
 
+// Teleoperation 3D View
+let teleopScene = null;
+let teleopCamera = null;
+let teleopRenderer = null;
+let teleopActive = false;
+let teleopBotId = null;
+let teleopWorldData = null;
+let teleopBlocks = [];
+let teleopEntities = [];
+let teleopBotMesh = null;
+let teleopControls = {
+    forward: false,
+    back: false,
+    left: false,
+    right: false,
+    jump: false,
+    sprint: false,
+    sneak: false
+};
+let teleopMouseDown = false;
+let teleopLastMouseX = 0;
+let teleopLastMouseY = 0;
+let teleopYaw = 0;
+let teleopPitch = 0;
+let teleopWorldUpdateInterval = null;
+
+// Block colors mapping
+const blockColors = {
+    'grass_block': 0x7cbd3f,
+    'dirt': 0x8b6f47,
+    'stone': 0x808080,
+    'cobblestone': 0x6b6b6b,
+    'wood': 0x8b4513,
+    'oak_log': 0x8b4513,
+    'sand': 0xf4e4bc,
+    'gravel': 0x888888,
+    'water': 0x3f76e4,
+    'lava': 0xff4500,
+    'default': 0x888888
+};
+
+function getBlockColor(blockName) {
+    for (const [key, color] of Object.entries(blockColors)) {
+        if (blockName.includes(key)) {
+            return color;
+        }
+    }
+    return blockColors.default;
+}
+
+function initTeleop3D() {
+    const container = document.getElementById('teleop-canvas-container');
+    const canvas = document.getElementById('teleop-canvas');
+    
+    if (!container || !canvas) return;
+
+    // Scene
+    teleopScene = new THREE.Scene();
+    teleopScene.background = new THREE.Color(0x87CEEB); // Sky blue
+    
+    // Camera
+    const width = container.clientWidth;
+    const height = container.clientHeight;
+    teleopCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    
+    // Renderer
+    teleopRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    teleopRenderer.setSize(width, height);
+    teleopRenderer.shadowMap.enabled = true;
+    
+    // Lighting
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    teleopScene.add(ambientLight);
+    
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    directionalLight.position.set(50, 50, 50);
+    directionalLight.castShadow = true;
+    teleopScene.add(directionalLight);
+    
+    // Grid helper
+    const gridHelper = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
+    teleopScene.add(gridHelper);
+    
+    // Handle window resize
+    window.addEventListener('resize', () => {
+        if (teleopCamera && teleopRenderer && container) {
+            const width = container.clientWidth;
+            const height = container.clientHeight;
+            teleopCamera.aspect = width / height;
+            teleopCamera.updateProjectionMatrix();
+            teleopRenderer.setSize(width, height);
+        }
+    });
+    
+    // Mouse controls
+    canvas.addEventListener('mousedown', (e) => {
+        teleopMouseDown = true;
+        teleopLastMouseX = e.clientX;
+        teleopLastMouseY = e.clientY;
+        canvas.requestPointerLock();
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (teleopMouseDown && document.pointerLockElement === canvas) {
+            const deltaX = e.movementX || 0;
+            const deltaY = e.movementY || 0;
+            
+            teleopYaw -= deltaX * 0.002;
+            teleopPitch -= deltaY * 0.002;
+            teleopPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, teleopPitch));
+            
+            // Send look command
+            if (teleopBotId && ws && ws.readyState === WebSocket.OPEN) {
+                ws.send(JSON.stringify({
+                    type: 'bot_control',
+                    botId: teleopBotId,
+                    action: 'look',
+                    yaw: teleopYaw,
+                    pitch: teleopPitch
+                }));
+            }
+        }
+    });
+    
+    canvas.addEventListener('mouseup', () => {
+        teleopMouseDown = false;
+        document.exitPointerLock();
+    });
+    
+    document.addEventListener('pointerlockchange', () => {
+        if (document.pointerLockElement !== canvas) {
+            teleopMouseDown = false;
+        }
+    });
+    
+    // Keyboard controls
+    const keyMap = {
+        'w': 'forward',
+        's': 'back',
+        'a': 'left',
+        'd': 'right',
+        ' ': 'jump',
+        'Shift': 'sprint',
+        'Control': 'sneak'
+    };
+    
+    window.addEventListener('keydown', (e) => {
+        if (!teleopActive) return;
+        
+        const key = e.key.toLowerCase();
+        const action = keyMap[key] || keyMap[e.key];
+        
+        if (action && !teleopControls[action]) {
+            teleopControls[action] = true;
+            sendTeleopControl(action, true);
+        }
+    });
+    
+    window.addEventListener('keyup', (e) => {
+        if (!teleopActive) return;
+        
+        const key = e.key.toLowerCase();
+        const action = keyMap[key] || keyMap[e.key];
+        
+        if (action && teleopControls[action]) {
+            teleopControls[action] = false;
+            sendTeleopControl(action, false);
+        }
+    });
+    
+    // Prevent space from scrolling
+    window.addEventListener('keydown', (e) => {
+        if (teleopActive && e.key === ' ') {
+            e.preventDefault();
+        }
+    });
+}
+
+function sendTeleopControl(action, pressed) {
+    if (!teleopBotId || !ws || ws.readyState !== WebSocket.OPEN) return;
+    
+    if (pressed) {
+        ws.send(JSON.stringify({
+            type: 'bot_control',
+            botId: teleopBotId,
+            action: 'move',
+            command: action,
+            duration: 100
+        }));
+    } else {
+        // Stop movement by sending opposite or clearing
+        ws.send(JSON.stringify({
+            type: 'bot_control',
+            botId: teleopBotId,
+            action: 'move',
+            command: action,
+            duration: 0
+        }));
+    }
+}
+
+function updateTeleopWorld(worldData) {
+    if (!teleopScene || !worldData) return;
+    
+    teleopWorldData = worldData;
+    
+    // Clear existing blocks
+    teleopBlocks.forEach(block => {
+        teleopScene.remove(block);
+    });
+    teleopBlocks = [];
+    
+    // Add blocks
+    worldData.blocks.forEach(blockData => {
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const color = getBlockColor(blockData.name);
+        const material = new THREE.MeshLambertMaterial({ color: color });
+        const cube = new THREE.Mesh(geometry, material);
+        cube.position.set(blockData.x, blockData.y, blockData.z);
+        cube.castShadow = true;
+        cube.receiveShadow = true;
+        teleopScene.add(cube);
+        teleopBlocks.push(cube);
+    });
+    
+    // Update bot position
+    if (worldData.bot) {
+        const botPos = worldData.bot.position;
+        
+        // Remove old bot mesh
+        if (teleopBotMesh) {
+            teleopScene.remove(teleopBotMesh);
+        }
+        
+        // Create bot representation
+        const botGeometry = new THREE.BoxGeometry(0.6, 1.8, 0.6);
+        const botMaterial = new THREE.MeshLambertMaterial({ color: 0x00ff00 });
+        teleopBotMesh = new THREE.Mesh(botGeometry, botMaterial);
+        teleopBotMesh.position.set(parseFloat(botPos.x), parseFloat(botPos.y) + 0.9, parseFloat(botPos.z));
+        teleopScene.add(teleopBotMesh);
+        
+        // Update camera to follow bot
+        if (teleopCamera) {
+            const yaw = parseFloat(worldData.bot.yaw) || 0;
+            const pitch = parseFloat(worldData.bot.pitch) || 0;
+            const distance = 10;
+            
+            teleopCamera.position.x = parseFloat(botPos.x) + Math.sin(yaw) * Math.cos(pitch) * distance;
+            teleopCamera.position.y = parseFloat(botPos.y) + 5 + Math.sin(pitch) * distance;
+            teleopCamera.position.z = parseFloat(botPos.z) + Math.cos(yaw) * Math.cos(pitch) * distance;
+            teleopCamera.lookAt(parseFloat(botPos.x), parseFloat(botPos.y) + 1, parseFloat(botPos.z));
+        }
+        
+        // Update info overlay
+        const infoEl = document.getElementById('teleop-info');
+        if (infoEl) {
+            infoEl.innerHTML = `
+                Pos: ${botPos.x}, ${botPos.y}, ${botPos.z} | 
+                Salud: ${worldData.bot.health}/20 | 
+                Bloques: ${worldData.blocks.length} | 
+                Entidades: ${worldData.entities.length}
+            `;
+        }
+    }
+    
+    // Update entities
+    teleopEntities.forEach(entity => {
+        teleopScene.remove(entity);
+    });
+    teleopEntities = [];
+    
+    worldData.entities.forEach(entityData => {
+        const geometry = new THREE.SphereGeometry(0.5, 8, 8);
+        const material = new THREE.MeshLambertMaterial({ color: 0xff0000 });
+        const sphere = new THREE.Mesh(geometry, material);
+        sphere.position.set(
+            parseFloat(entityData.position.x),
+            parseFloat(entityData.position.y),
+            parseFloat(entityData.position.z)
+        );
+        teleopScene.add(sphere);
+        teleopEntities.push(sphere);
+    });
+}
+
+function animateTeleop() {
+    if (!teleopActive || !teleopRenderer || !teleopScene || !teleopCamera) return;
+    
+    requestAnimationFrame(animateTeleop);
+    teleopRenderer.render(teleopScene, teleopCamera);
+}
+
+function startTeleop(botId) {
+    if (teleopActive) {
+        stopTeleop();
+    }
+    
+    teleopActive = true;
+    teleopBotId = botId;
+    
+    // Initialize 3D scene if not already done
+    if (!teleopScene) {
+        initTeleop3D();
+    }
+    
+    // Request world data
+    function requestWorldData() {
+        if (ws && ws.readyState === WebSocket.OPEN && teleopBotId) {
+            ws.send(JSON.stringify({
+                type: 'request_world_data',
+                botId: teleopBotId
+            }));
+        }
+    }
+    
+    // Request initial data
+    requestWorldData();
+    
+    // Set up periodic updates
+    teleopWorldUpdateInterval = setInterval(requestWorldData, 500); // Update every 500ms
+    
+    // Start animation loop
+    animateTeleop();
+    
+    // Update UI
+    document.getElementById('teleop-status').textContent = 'Activo - Usa WASD y Mouse';
+    document.getElementById('teleop-status').style.color = 'var(--success-color)';
+}
+
+function stopTeleop() {
+    teleopActive = false;
+    teleopBotId = null;
+    
+    if (teleopWorldUpdateInterval) {
+        clearInterval(teleopWorldUpdateInterval);
+        teleopWorldUpdateInterval = null;
+    }
+    
+    // Stop all controls
+    Object.keys(teleopControls).forEach(key => {
+        if (teleopControls[key]) {
+            sendTeleopControl(key, false);
+            teleopControls[key] = false;
+        }
+    });
+    
+    // Update UI
+    document.getElementById('teleop-status').textContent = 'Inactivo';
+    document.getElementById('teleop-status').style.color = 'var(--text-secondary)';
+}
+
 // Initialize on page load
 window.addEventListener('DOMContentLoaded', () => {
     initWebSocket();
     loadBots();
     loadServersHistory();
+    
+    // Toggle teleoperation
+    const toggleBtn = document.getElementById('btn-toggle-teleop');
+    const container = document.getElementById('teleop-container');
+    
+    if (toggleBtn) {
+        toggleBtn.addEventListener('click', () => {
+            if (container.style.display === 'none') {
+                container.style.display = 'block';
+                toggleBtn.textContent = '🖥️ Desactivar Vista 3D';
+                
+                if (currentBotId) {
+                    startTeleop(currentBotId);
+                }
+            } else {
+                container.style.display = 'none';
+                toggleBtn.textContent = '🖥️ Activar Vista 3D';
+                stopTeleop();
+            }
+        });
+    }
 });
 
