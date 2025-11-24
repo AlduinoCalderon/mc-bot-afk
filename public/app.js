@@ -405,16 +405,31 @@ document.getElementById('btn-delete-bot').addEventListener('click', async functi
     }
 });
 
+let selectedInventorySlot = null;
+let inventoryBotId = null;
+
 function showInventory(inventory) {
     const modal = document.getElementById('inventory-modal');
     const content = document.getElementById('inventory-content');
+    inventoryBotId = currentBotId;
+    selectedInventorySlot = null;
     
-    let html = '<div class="inventory-grid">';
+    let html = '<div style="margin-bottom: 15px;"><strong>Inventario (Haz clic en un slot para seleccionarlo, luego clic en otro para intercambiar)</strong></div>';
+    html += '<div class="inventory-grid">';
+    
     inventory.items.forEach((item, index) => {
+        const itemName = item.name ? item.name.replace('minecraft:', '') : 'Vacío';
+        const isHotbar = index < 9;
+        const slotClass = isHotbar ? 'hotbar-slot' : '';
+        
         html += `
-            <div class="inventory-slot ${item.count > 0 ? 'has-item' : ''}">
-                <div class="inventory-slot-name">${item.name.replace('minecraft:', '')}</div>
-                <div class="inventory-slot-count">${item.count > 0 ? `x${item.count}` : 'Vacío'}</div>
+            <div class="inventory-slot ${item.count > 0 ? 'has-item' : ''} ${slotClass}" 
+                 data-slot="${index}" 
+                 onclick="selectInventorySlot(${index})"
+                 style="${isHotbar ? 'border: 2px solid #ff9800;' : ''}">
+                <div class="inventory-slot-name">${itemName}</div>
+                <div class="inventory-slot-count">${item.count > 0 ? `x${item.count}` : ''}</div>
+                ${isHotbar ? '<div style="font-size: 0.6rem; color: #ff9800;">Hotbar</div>' : ''}
             </div>
         `;
     });
@@ -422,12 +437,73 @@ function showInventory(inventory) {
     
     if (inventory.heldItem) {
         html += `<div style="margin-top: 20px; padding: 15px; background: var(--dark-bg); border-radius: 8px;">
-            <strong>Item en mano:</strong> ${inventory.heldItem.name.replace('minecraft:', '')} x${inventory.heldItem.count}
+            <strong>Item en mano (Hotbar slot ${inventory.heldItem.slot || 'N/A'}):</strong> ${inventory.heldItem.name.replace('minecraft:', '')} x${inventory.heldItem.count}
         </div>`;
     }
     
+    html += `<div style="margin-top: 15px; padding: 10px; background: var(--dark-bg); border-radius: 5px;">
+        <div id="inventory-selection-info" style="color: var(--text-secondary);">Selecciona un slot para intercambiar items</div>
+        <button id="btn-swap-items" class="btn btn-primary" style="margin-top: 10px; display: none;" onclick="swapInventoryItems()">Intercambiar Items</button>
+    </div>`;
+    
     content.innerHTML = html;
     modal.style.display = 'flex';
+}
+
+function selectInventorySlot(slot) {
+    if (!inventoryBotId) return;
+    
+    const slots = document.querySelectorAll('.inventory-slot');
+    slots.forEach(s => s.classList.remove('selected'));
+    
+    if (selectedInventorySlot === slot) {
+        // Deseleccionar si se hace clic en el mismo slot
+        selectedInventorySlot = null;
+        document.getElementById('inventory-selection-info').textContent = 'Selecciona un slot para intercambiar items';
+        document.getElementById('btn-swap-items').style.display = 'none';
+    } else if (selectedInventorySlot === null) {
+        // Seleccionar primer slot
+        selectedInventorySlot = slot;
+        const slotEl = document.querySelector(`[data-slot="${slot}"]`);
+        if (slotEl) {
+            slotEl.classList.add('selected');
+            document.getElementById('inventory-selection-info').textContent = `Slot ${slot} seleccionado. Haz clic en otro slot para intercambiar.`;
+            document.getElementById('btn-swap-items').style.display = 'none';
+        }
+    } else {
+        // Intercambiar con el slot seleccionado
+        swapInventorySlots(selectedInventorySlot, slot);
+    }
+}
+
+function swapInventorySlots(fromSlot, toSlot) {
+    if (!inventoryBotId) return;
+    
+    fetch(`/bots/${inventoryBotId}/inventory/swap`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fromSlot, toSlot })
+    })
+    .then(res => res.json())
+    .then(data => {
+        if (data.success) {
+            // Recargar inventario
+            fetch(`/bots/${inventoryBotId}/inventory`)
+                .then(res => res.json())
+                .then(inv => showInventory(inv));
+        } else {
+            alert('Error: ' + (data.error || 'No se pudo intercambiar'));
+        }
+    })
+    .catch(err => {
+        console.error('Error swapping items:', err);
+        alert('Error al intercambiar items');
+    });
+}
+
+function swapInventoryItems() {
+    // Esta función se llama desde el botón, pero selectInventorySlot ya maneja el intercambio
+    // Se mantiene por compatibilidad
 }
 
 function closeInventoryModal() {
@@ -615,6 +691,9 @@ let teleopLastMouseY = 0;
 let teleopYaw = 0;
 let teleopPitch = 0;
 let teleopWorldUpdateInterval = null;
+let teleopControlsEnabled = false; // Nuevo: control de activación de controles
+let teleopFullscreen = false;
+let teleopGroundPlane = null;
 
 // Block colors mapping
 const blockColors = {
@@ -655,32 +734,36 @@ function initTeleop3D() {
         return;
     }
 
-    // Scene
+    // Scene - Estilo Minecraft simplificado
     teleopScene = new THREE.Scene();
     teleopScene.background = new THREE.Color(0x87CEEB); // Sky blue
     
     // Camera
     const width = container.clientWidth;
     const height = container.clientHeight;
-    teleopCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 1000);
+    teleopCamera = new THREE.PerspectiveCamera(75, width / height, 0.1, 200);
     
-    // Renderer
-    teleopRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: true });
+    // Renderer - Sin antialiasing para estilo más pixelado
+    teleopRenderer = new THREE.WebGLRenderer({ canvas: canvas, antialias: false });
     teleopRenderer.setSize(width, height);
-    teleopRenderer.shadowMap.enabled = true;
+    teleopRenderer.shadowMap.enabled = false; // Desactivar sombras para mejor rendimiento
     
-    // Lighting
-    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    // Lighting simple
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.8);
     teleopScene.add(ambientLight);
     
-    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.8);
-    directionalLight.position.set(50, 50, 50);
-    directionalLight.castShadow = true;
+    const directionalLight = new THREE.DirectionalLight(0xffffff, 0.5);
+    directionalLight.position.set(50, 100, 50);
     teleopScene.add(directionalLight);
     
-    // Grid helper
-    const gridHelper = new THREE.GridHelper(100, 100, 0x444444, 0x222222);
-    teleopScene.add(gridHelper);
+    // Crear piso simple (estilo Minecraft)
+    const groundSize = 50;
+    const groundGeometry = new THREE.PlaneGeometry(groundSize, groundSize);
+    const groundMaterial = new THREE.MeshLambertMaterial({ color: 0x7cbd3f }); // Color hierba
+    teleopGroundPlane = new THREE.Mesh(groundGeometry, groundMaterial);
+    teleopGroundPlane.rotation.x = -Math.PI / 2;
+    teleopGroundPlane.position.y = 0;
+    teleopScene.add(teleopGroundPlane);
     
     // Handle window resize
     window.addEventListener('resize', () => {
@@ -734,7 +817,7 @@ function initTeleop3D() {
         }
     });
     
-    // Keyboard controls
+    // Keyboard controls - Solo si están habilitados
     const keyMap = {
         'w': 'forward',
         's': 'back',
@@ -742,28 +825,36 @@ function initTeleop3D() {
         'd': 'right',
         ' ': 'jump',
         'Shift': 'sprint',
-        'Control': 'sneak'
+        'Control': 'sneak',
+        'e': 'inventory'
     };
     
     window.addEventListener('keydown', (e) => {
-        if (!teleopActive) return;
+        if (!teleopActive || !teleopControlsEnabled) return;
+        
+        // Inventario con E
+        if (e.key.toLowerCase() === 'e') {
+            e.preventDefault();
+            openTeleopInventory();
+            return;
+        }
         
         const key = e.key.toLowerCase();
         const action = keyMap[key] || keyMap[e.key];
         
-        if (action && !teleopControls[action]) {
+        if (action && action !== 'inventory' && !teleopControls[action]) {
             teleopControls[action] = true;
             sendTeleopControl(action, true);
         }
     });
     
     window.addEventListener('keyup', (e) => {
-        if (!teleopActive) return;
+        if (!teleopActive || !teleopControlsEnabled) return;
         
         const key = e.key.toLowerCase();
         const action = keyMap[key] || keyMap[e.key];
         
-        if (action && teleopControls[action]) {
+        if (action && action !== 'inventory' && teleopControls[action]) {
             teleopControls[action] = false;
             sendTeleopControl(action, false);
         }
@@ -771,8 +862,50 @@ function initTeleop3D() {
     
     // Prevent space from scrolling
     window.addEventListener('keydown', (e) => {
-        if (teleopActive && e.key === ' ') {
+        if (teleopActive && teleopControlsEnabled && e.key === ' ') {
             e.preventDefault();
+        }
+    });
+    
+    // Mouse controls - Solo si están habilitados
+    canvas.addEventListener('mousedown', (e) => {
+        if (!teleopControlsEnabled) return;
+        teleopMouseDown = true;
+        canvas.requestPointerLock();
+    });
+    
+    canvas.addEventListener('mousemove', (e) => {
+        if (!teleopControlsEnabled || !teleopMouseDown || document.pointerLockElement !== canvas) return;
+        
+        const deltaX = e.movementX || 0;
+        const deltaY = e.movementY || 0;
+        
+        teleopYaw -= deltaX * 0.002;
+        teleopPitch -= deltaY * 0.002;
+        teleopPitch = Math.max(-Math.PI / 2, Math.min(Math.PI / 2, teleopPitch));
+        
+        // Send look command
+        if (teleopBotId && ws && ws.readyState === WebSocket.OPEN) {
+            ws.send(JSON.stringify({
+                type: 'bot_control',
+                botId: teleopBotId,
+                action: 'look',
+                yaw: teleopYaw,
+                pitch: teleopPitch
+            }));
+        }
+    });
+    
+    canvas.addEventListener('mouseup', () => {
+        teleopMouseDown = false;
+        if (document.pointerLockElement === canvas) {
+            document.exitPointerLock();
+        }
+    });
+    
+    document.addEventListener('pointerlockchange', () => {
+        if (document.pointerLockElement !== canvas) {
+            teleopMouseDown = false;
         }
     });
 }
@@ -809,24 +942,32 @@ function updateTeleopWorld(worldData) {
     try {
         teleopWorldData = worldData;
         
-        // Clear existing blocks
+        // Clear existing blocks (except ground)
         teleopBlocks.forEach(block => {
             teleopScene.remove(block);
         });
         teleopBlocks = [];
     
-    // Add blocks
-    worldData.blocks.forEach(blockData => {
-        const geometry = new THREE.BoxGeometry(1, 1, 1);
-        const color = getBlockColor(blockData.name);
-        const material = new THREE.MeshLambertMaterial({ color: color });
-        const cube = new THREE.Mesh(geometry, material);
-        cube.position.set(blockData.x, blockData.y, blockData.z);
-        cube.castShadow = true;
-        cube.receiveShadow = true;
-        teleopScene.add(cube);
-        teleopBlocks.push(cube);
-    });
+        // Add blocks - Solo bloques importantes (simplificado)
+        // Filtrar solo bloques cerca del suelo o importantes
+        const botY = worldData.bot ? parseFloat(worldData.bot.position.y) : 0;
+        const visibleRange = 8; // Solo mostrar bloques en un rango pequeño
+        
+        worldData.blocks.forEach(blockData => {
+            const blockY = parseFloat(blockData.y);
+            const distance = Math.abs(blockY - botY);
+            
+            // Solo mostrar bloques cerca del nivel del bot o del suelo
+            if (distance <= visibleRange || blockY <= botY + 2) {
+                const geometry = new THREE.BoxGeometry(1, 1, 1);
+                const color = getBlockColor(blockData.name);
+                const material = new THREE.MeshLambertMaterial({ color: color });
+                const cube = new THREE.Mesh(geometry, material);
+                cube.position.set(blockData.x, blockData.y, blockData.z);
+                teleopScene.add(cube);
+                teleopBlocks.push(cube);
+            }
+        });
     
     // Update bot position
     if (worldData.bot) {
@@ -844,16 +985,21 @@ function updateTeleopWorld(worldData) {
         teleopBotMesh.position.set(parseFloat(botPos.x), parseFloat(botPos.y) + 0.9, parseFloat(botPos.z));
         teleopScene.add(teleopBotMesh);
         
-        // Update camera to follow bot
+        // Update camera to follow bot - Vista primera persona (desde los ojos del bot)
         if (teleopCamera) {
-            const yaw = parseFloat(worldData.bot.yaw) || 0;
-            const pitch = parseFloat(worldData.bot.pitch) || 0;
-            const distance = 10;
+            const yaw = parseFloat(worldData.bot.yaw) || teleopYaw;
+            const pitch = parseFloat(worldData.bot.pitch) || teleopPitch;
             
-            teleopCamera.position.x = parseFloat(botPos.x) + Math.sin(yaw) * Math.cos(pitch) * distance;
-            teleopCamera.position.y = parseFloat(botPos.y) + 5 + Math.sin(pitch) * distance;
-            teleopCamera.position.z = parseFloat(botPos.z) + Math.cos(yaw) * Math.cos(pitch) * distance;
-            teleopCamera.lookAt(parseFloat(botPos.x), parseFloat(botPos.y) + 1, parseFloat(botPos.z));
+            // Cámara en primera persona (desde la posición del bot)
+            const eyeHeight = 1.6; // Altura de los ojos en Minecraft
+            teleopCamera.position.x = parseFloat(botPos.x);
+            teleopCamera.position.y = parseFloat(botPos.y) + eyeHeight;
+            teleopCamera.position.z = parseFloat(botPos.z);
+            
+            // Rotar cámara según yaw y pitch
+            teleopCamera.rotation.order = 'YXZ';
+            teleopCamera.rotation.y = yaw;
+            teleopCamera.rotation.x = pitch;
         }
         
         // Update info overlay
@@ -910,6 +1056,7 @@ function startTeleop(botId) {
     
     teleopActive = true;
     teleopBotId = botId;
+    teleopControlsEnabled = false; // Controles desactivados por defecto
     
     // Initialize 3D scene if not already done
     if (!teleopScene) {
@@ -943,13 +1090,116 @@ function startTeleop(botId) {
     animateTeleop();
     
     // Update UI
-    document.getElementById('teleop-status').textContent = 'Activo - Usa WASD y Mouse';
+    document.getElementById('teleop-status').textContent = 'Activo';
     document.getElementById('teleop-status').style.color = 'var(--success-color)';
+    document.getElementById('btn-fullscreen').style.display = 'inline-block';
+    document.getElementById('btn-toggle-controls').style.display = 'inline-block';
+    updateControlsStatus();
+}
+
+function toggleTeleopControls() {
+    teleopControlsEnabled = !teleopControlsEnabled;
+    updateControlsStatus();
+    
+    // Si se desactivan, detener todos los movimientos
+    if (!teleopControlsEnabled) {
+        Object.keys(teleopControls).forEach(key => {
+            if (teleopControls[key]) {
+                sendTeleopControl(key, false);
+                teleopControls[key] = false;
+            }
+        });
+        if (document.pointerLockElement) {
+            document.exitPointerLock();
+        }
+    }
+}
+
+function updateControlsStatus() {
+    const btn = document.getElementById('btn-toggle-controls');
+    const statusEl = document.getElementById('teleop-controls-status');
+    
+    if (btn && statusEl) {
+        if (teleopControlsEnabled) {
+            btn.textContent = '🎮 Controles: ACTIVADOS';
+            btn.className = 'btn btn-success';
+            statusEl.textContent = '✅ Controles ACTIVADOS - Puedes usar WASD, Mouse, Espacio, etc.';
+            statusEl.style.color = '#4CAF50';
+        } else {
+            btn.textContent = '🎮 Controles: DESACTIVADOS';
+            btn.className = 'btn btn-warning';
+            statusEl.textContent = '⚠️ Controles DESACTIVADOS - Presiona el botón para activar';
+            statusEl.style.color = '#ff6b6b';
+        }
+    }
+}
+
+function toggleFullscreen() {
+    const container = document.getElementById('teleop-canvas-container');
+    if (!container) return;
+    
+    if (!teleopFullscreen) {
+        // Entrar a pantalla completa
+        if (container.requestFullscreen) {
+            container.requestFullscreen();
+        } else if (container.webkitRequestFullscreen) {
+            container.webkitRequestFullscreen();
+        } else if (container.msRequestFullscreen) {
+            container.msRequestFullscreen();
+        }
+        teleopFullscreen = true;
+        document.getElementById('btn-fullscreen').textContent = '⛶ Salir de Pantalla Completa';
+        
+        // Ajustar tamaño del renderer
+        setTimeout(() => {
+            if (teleopRenderer && teleopCamera) {
+                teleopRenderer.setSize(window.innerWidth, window.innerHeight);
+                teleopCamera.aspect = window.innerWidth / window.innerHeight;
+                teleopCamera.updateProjectionMatrix();
+            }
+        }, 100);
+    } else {
+        // Salir de pantalla completa
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        }
+        teleopFullscreen = false;
+        document.getElementById('btn-fullscreen').textContent = '⛶ Pantalla Completa';
+        
+        // Restaurar tamaño
+        setTimeout(() => {
+            const container = document.getElementById('teleop-canvas-container');
+            if (teleopRenderer && teleopCamera && container) {
+                teleopRenderer.setSize(container.clientWidth, container.clientHeight);
+                teleopCamera.aspect = container.clientWidth / container.clientHeight;
+                teleopCamera.updateProjectionMatrix();
+            }
+        }, 100);
+    }
+}
+
+function openTeleopInventory() {
+    if (!teleopBotId) return;
+    
+    fetch(`/bots/${teleopBotId}/inventory`)
+        .then(res => res.json())
+        .then(data => {
+            showInventory(data);
+        })
+        .catch(err => {
+            console.error('Error loading inventory:', err);
+            alert('Error al cargar el inventario');
+        });
 }
 
 function stopTeleop() {
     teleopActive = false;
     teleopBotId = null;
+    teleopControlsEnabled = false;
     
     if (teleopWorldUpdateInterval) {
         clearInterval(teleopWorldUpdateInterval);
@@ -964,9 +1214,28 @@ function stopTeleop() {
         }
     });
     
+    // Salir de pantalla completa si está activa
+    if (teleopFullscreen) {
+        if (document.exitFullscreen) {
+            document.exitFullscreen();
+        } else if (document.webkitExitFullscreen) {
+            document.webkitExitFullscreen();
+        } else if (document.msExitFullscreen) {
+            document.msExitFullscreen();
+        }
+        teleopFullscreen = false;
+    }
+    
+    // Salir de pointer lock
+    if (document.pointerLockElement) {
+        document.exitPointerLock();
+    }
+    
     // Update UI
     document.getElementById('teleop-status').textContent = 'Inactivo';
     document.getElementById('teleop-status').style.color = 'var(--text-secondary)';
+    document.getElementById('btn-fullscreen').style.display = 'none';
+    document.getElementById('btn-toggle-controls').style.display = 'none';
 }
 
 // Initialize on page load
@@ -995,5 +1264,36 @@ window.addEventListener('DOMContentLoaded', () => {
             }
         });
     }
+    
+    // Fullscreen button
+    const fullscreenBtn = document.getElementById('btn-fullscreen');
+    if (fullscreenBtn) {
+        fullscreenBtn.addEventListener('click', toggleFullscreen);
+    }
+    
+    // Toggle controls button
+    const controlsBtn = document.getElementById('btn-toggle-controls');
+    if (controlsBtn) {
+        controlsBtn.addEventListener('click', toggleTeleopControls);
+    }
+    
+    // Handle fullscreen change events
+    document.addEventListener('fullscreenchange', () => {
+        if (!document.fullscreenElement) {
+            teleopFullscreen = false;
+            if (fullscreenBtn) {
+                fullscreenBtn.textContent = '⛶ Pantalla Completa';
+            }
+        }
+    });
+    
+    document.addEventListener('webkitfullscreenchange', () => {
+        if (!document.webkitFullscreenElement) {
+            teleopFullscreen = false;
+            if (fullscreenBtn) {
+                fullscreenBtn.textContent = '⛶ Pantalla Completa';
+            }
+        }
+    });
 });
 

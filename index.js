@@ -1190,13 +1190,17 @@ const server = http.createServer(async (req, res) => {
         }
 
         const items = [];
-        for (let i = 0; i < botManager.bot.inventory.items().length; i++) {
-          const item = botManager.bot.inventory.items()[i];
+        const inventory = botManager.bot.inventory;
+        
+        // Get all slots (including empty ones)
+        for (let i = 0; i < 36; i++) {
+          const item = inventory.slots[i];
           items.push({
             slot: i,
-            name: item.name,
-            count: item.count,
-            displayName: item.displayName
+            name: item ? item.name : null,
+            count: item ? item.count : 0,
+            displayName: item ? item.displayName : null,
+            isEmpty: !item || item.count === 0
           });
         }
 
@@ -1204,9 +1208,102 @@ const server = http.createServer(async (req, res) => {
           items: items,
           heldItem: botManager.bot.heldItem ? {
             name: botManager.bot.heldItem.name,
-            count: botManager.bot.heldItem.count
+            count: botManager.bot.heldItem.count,
+            slot: inventory.selectedHotbarSlot
           } : null
         });
+        return;
+      }
+
+      // POST /bots/:id/inventory/swap - Swap items in inventory
+      if (subPath === 'inventory/swap' && method === 'POST') {
+        if (!botManager.bot || !botManager.bot.entity) {
+          sendJSON(res, 400, { error: 'Bot not connected' });
+          return;
+        }
+
+        const body = await parseBody(req);
+        const { fromSlot, toSlot } = body;
+
+        if (fromSlot === undefined || toSlot === undefined) {
+          sendJSON(res, 400, { error: 'fromSlot and toSlot required' });
+          return;
+        }
+
+        try {
+          const inventory = botManager.bot.inventory;
+          
+          // Swap items using mineflayer's swap method
+          if (inventory.swap) {
+            await inventory.swap(fromSlot, toSlot);
+            sendJSON(res, 200, {
+              success: true,
+              message: `Items swapped from slot ${fromSlot} to ${toSlot}`
+            });
+          } else {
+            // Fallback: use moveItem if available
+            const fromItem = inventory.slots[fromSlot];
+            const toItem = inventory.slots[toSlot];
+            
+            if (fromItem) {
+              await inventory.moveItem(fromSlot, toSlot);
+            }
+            
+            sendJSON(res, 200, {
+              success: true,
+              message: `Item moved from slot ${fromSlot} to ${toSlot}`
+            });
+          }
+        } catch (err) {
+          console.error(`[${new Date().toLocaleTimeString()}] [${botManager.name}] Inventory swap error:`, err);
+          sendJSON(res, 400, { error: err.message });
+        }
+        return;
+      }
+
+      // POST /bots/:id/inventory/equip - Equip item from slot
+      if (subPath === 'inventory/equip' && method === 'POST') {
+        if (!botManager.bot || !botManager.bot.entity) {
+          sendJSON(res, 400, { error: 'Bot not connected' });
+          return;
+        }
+
+        const body = await parseBody(req);
+        const { slot } = body;
+
+        if (slot === undefined) {
+          sendJSON(res, 400, { error: 'slot required' });
+          return;
+        }
+
+        try {
+          const inventory = botManager.bot.inventory;
+          
+          // Equip item (move to hotbar slot 0-8 or select it)
+          if (slot >= 0 && slot < 36) {
+            // If it's a hotbar slot (0-8), just select it
+            if (slot < 9) {
+              inventory.selectHotbarSlot(slot);
+              sendJSON(res, 200, {
+                success: true,
+                message: `Selected hotbar slot ${slot}`
+              });
+            } else {
+              // Move item from inventory to hotbar
+              const targetHotbarSlot = inventory.selectedHotbarSlot || 0;
+              await inventory.moveItem(slot, targetHotbarSlot);
+              sendJSON(res, 200, {
+                success: true,
+                message: `Moved item from slot ${slot} to hotbar slot ${targetHotbarSlot}`
+              });
+            }
+          } else {
+            sendJSON(res, 400, { error: 'Invalid slot number (0-35)' });
+          }
+        } catch (err) {
+          console.error(`[${new Date().toLocaleTimeString()}] [${botManager.name}] Inventory equip error:`, err);
+          sendJSON(res, 400, { error: err.message });
+        }
         return;
       }
 

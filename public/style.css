@@ -680,3 +680,59 @@ input:focus, select:focus {
     font-size: 0.7rem;
 }
 
+/* Fullscreen teleop */
+#teleop-canvas-container:fullscreen {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    border-radius: 0;
+}
+
+#teleop-canvas-container:-webkit-full-screen {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    border-radius: 0;
+}
+
+#teleop-canvas-container:-moz-full-screen {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    border-radius: 0;
+}
+
+#teleop-canvas-container:-ms-fullscreen {
+    width: 100vw;
+    height: 100vh;
+    border: none;
+    border-radius: 0;
+}
+
+/* Inventory interactive */
+.inventory-slot {
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.inventory-slot:hover {
+    transform: scale(1.1);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 10px rgba(76, 175, 80, 0.5);
+}
+
+.inventory-slot.selected {
+    border-color: var(--secondary-color);
+    background: rgba(33, 150, 243, 0.2);
+    box-shadow: 0 0 15px rgba(33, 150, 243, 0.7);
+}
+
+.btn-success {
+    background: var(--success-color);
+    color: white;
+}
+
+.btn-success:hover {
+    background: #45a049;
+}
+
