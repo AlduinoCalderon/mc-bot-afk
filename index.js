@@ -1421,7 +1421,7 @@ const server = http.createServer(async (req, res) => {
         return;
       }
 
-      // GET /bots/:id/world - Get world data for teleoperation
+      // GET /bots/:id/world - Get world data for teleoperation (OPTIMIZED)
       if (subPath === 'world' && method === 'GET') {
         if (!botManager.bot || !botManager.bot.entity) {
           sendJSON(res, 400, { error: 'Bot not connected' });
@@ -1431,23 +1431,26 @@ const server = http.createServer(async (req, res) => {
         try {
           const bot = botManager.bot;
           const pos = bot.entity.position;
-          const radius = 12; // Reduced radius to avoid timeout (12x12x12 = 1728 blocks max)
-          const step = 2; // Sample every 2 blocks to reduce load
+          const radius = 8; // Reduced radius (8x8x8 = 512 blocks max)
+          const step = 3; // Sample every 3 blocks (much lighter)
           
-          // Get nearby blocks (sampled to reduce load)
+          // Get nearby blocks - Solo piso y bloques importantes
           const blocks = [];
           let blockCount = 0;
-          const maxBlocks = 500; // Limit total blocks to prevent timeout
+          const maxBlocks = 100; // Mucho menos bloques para evitar timeout
           
-          for (let x = -radius; x <= radius; x += step) {
-            for (let y = -radius; y <= radius; y += step) {
+          const botY = Math.floor(pos.y);
+          
+          // Solo buscar bloques cerca del nivel del bot (piso y 2 niveles arriba)
+          for (let y = botY - 1; y <= botY + 2; y++) {
+            for (let x = -radius; x <= radius; x += step) {
               for (let z = -radius; z <= radius; z += step) {
                 if (blockCount >= maxBlocks) break;
                 
                 try {
                   const blockPos = bot.vec3(
                     Math.floor(pos.x) + x,
-                    Math.floor(pos.y) + y,
+                    y,
                     Math.floor(pos.z) + z
                   );
                   const block = bot.blockAt(blockPos);
@@ -1456,13 +1459,11 @@ const server = http.createServer(async (req, res) => {
                       x: blockPos.x,
                       y: blockPos.y,
                       z: blockPos.z,
-                      name: block.name,
-                      displayName: block.displayName
+                      name: block.name
                     });
                     blockCount++;
                   }
                 } catch (err) {
-                  // Skip blocks that cause errors
                   continue;
                 }
               }
@@ -1471,26 +1472,37 @@ const server = http.createServer(async (req, res) => {
             if (blockCount >= maxBlocks) break;
           }
 
-          // Get nearby entities
+          // Get nearby entities - Solo las más cercanas (máximo 5)
           const entities = [];
           const nearbyEntities = Object.values(bot.entities);
+          const entityDistances = [];
+          
           nearbyEntities.forEach(entity => {
             if (entity && entity.position) {
               const distance = pos.distanceTo(entity.position);
-              if (distance <= radius * 2) {
-                entities.push({
-                  id: entity.id,
-                  name: entity.name || 'unknown',
-                  position: {
-                    x: entity.position.x.toFixed(2),
-                    y: entity.position.y.toFixed(2),
-                    z: entity.position.z.toFixed(2)
-                  },
-                  distance: distance.toFixed(2),
-                  type: entity.type || 'unknown'
+              if (distance <= 16) { // Solo entidades dentro de 16 bloques
+                entityDistances.push({
+                  entity: entity,
+                  distance: distance
                 });
               }
             }
+          });
+          
+          // Ordenar por distancia y tomar solo las 5 más cercanas
+          entityDistances.sort((a, b) => a.distance - b.distance);
+          entityDistances.slice(0, 5).forEach(item => {
+            const entity = item.entity;
+            entities.push({
+              id: entity.id,
+              name: entity.name || 'unknown',
+              position: {
+                x: entity.position.x.toFixed(1),
+                y: entity.position.y.toFixed(1),
+                z: entity.position.z.toFixed(1)
+              },
+              distance: item.distance.toFixed(1)
+            });
           });
 
           // Get bot's look direction
@@ -1642,22 +1654,25 @@ function handleWebSocketMessage(ws, data) {
         try {
           const bot = worldBotManager.bot;
           const pos = bot.entity.position;
-          const radius = 12; // Reduced radius
-          const step = 2; // Sample every 2 blocks
+          const radius = 8; // Reduced radius
+          const step = 3; // Sample every 3 blocks
           
           const blocks = [];
           let blockCount = 0;
-          const maxBlocks = 500; // Limit total blocks
+          const maxBlocks = 100; // Mucho menos bloques
           
-          for (let x = -radius; x <= radius; x += step) {
-            for (let y = -radius; y <= radius; y += step) {
+          const botY = Math.floor(pos.y);
+          
+          // Solo buscar bloques cerca del nivel del bot
+          for (let y = botY - 1; y <= botY + 2; y++) {
+            for (let x = -radius; x <= radius; x += step) {
               for (let z = -radius; z <= radius; z += step) {
                 if (blockCount >= maxBlocks) break;
                 
                 try {
                   const blockPos = bot.vec3(
                     Math.floor(pos.x) + x,
-                    Math.floor(pos.y) + y,
+                    y,
                     Math.floor(pos.z) + z
                   );
                   const block = bot.blockAt(blockPos);
@@ -1666,8 +1681,7 @@ function handleWebSocketMessage(ws, data) {
                       x: blockPos.x,
                       y: blockPos.y,
                       z: blockPos.z,
-                      name: block.name,
-                      displayName: block.displayName
+                      name: block.name
                     });
                     blockCount++;
                   }
@@ -1680,26 +1694,37 @@ function handleWebSocketMessage(ws, data) {
             if (blockCount >= maxBlocks) break;
           }
 
-        const entities = [];
-        const nearbyEntities = Object.values(bot.entities);
-        nearbyEntities.forEach(entity => {
-          if (entity && entity.position) {
-            const distance = pos.distanceTo(entity.position);
-            if (distance <= radius * 2) {
-              entities.push({
-                id: entity.id,
-                name: entity.name || 'unknown',
-                position: {
-                  x: entity.position.x.toFixed(2),
-                  y: entity.position.y.toFixed(2),
-                  z: entity.position.z.toFixed(2)
-                },
-                distance: distance.toFixed(2),
-                type: entity.type || 'unknown'
-              });
+          // Get nearby entities - Solo las más cercanas (máximo 5)
+          const entities = [];
+          const nearbyEntities = Object.values(bot.entities);
+          const entityDistances = [];
+          
+          nearbyEntities.forEach(entity => {
+            if (entity && entity.position) {
+              const distance = pos.distanceTo(entity.position);
+              if (distance <= 16) {
+                entityDistances.push({
+                  entity: entity,
+                  distance: distance
+                });
+              }
             }
-          }
-        });
+          });
+          
+          entityDistances.sort((a, b) => a.distance - b.distance);
+          entityDistances.slice(0, 5).forEach(item => {
+            const entity = item.entity;
+            entities.push({
+              id: entity.id,
+              name: entity.name || 'unknown',
+              position: {
+                x: entity.position.x.toFixed(1),
+                y: entity.position.y.toFixed(1),
+                z: entity.position.z.toFixed(1)
+              },
+              distance: item.distance.toFixed(1)
+            });
+          });
 
         ws.send(JSON.stringify({
           type: 'world_data',

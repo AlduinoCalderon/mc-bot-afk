@@ -1083,8 +1083,8 @@ function startTeleop(botId) {
     // Request initial data
     requestWorldData();
     
-    // Set up periodic updates
-    teleopWorldUpdateInterval = setInterval(requestWorldData, 500); // Update every 500ms
+    // Set up periodic updates - Menos frecuente para reducir carga
+    teleopWorldUpdateInterval = setInterval(requestWorldData, 1000); // Update every 1 second (más ligero)
     
     // Start animation loop
     animateTeleop();
