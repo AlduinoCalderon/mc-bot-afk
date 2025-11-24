@@ -1813,11 +1813,18 @@ server.listen(HTTP_PORT, () => {
   loadBotData();
   loadServersHistory();
   console.log(`[${new Date().toLocaleTimeString()}] ========================================`);
-  console.log(`[${new Date().toLocaleTimeString()}] Web Interface: http://localhost:${HTTP_PORT}/`);
-  console.log(`[${new Date().toLocaleTimeString()}] Health endpoint: http://localhost:${HTTP_PORT}/health`);
-  console.log(`[${new Date().toLocaleTimeString()}] Monitor endpoint: http://localhost:${HTTP_PORT}/health/monitor`);
-  console.log(`[${new Date().toLocaleTimeString()}] Ping endpoint: http://localhost:${HTTP_PORT}/ping`);
+  const baseUrl = NODE_ENV === 'production' 
+    ? `https://${process.env.RENDER_SERVICE_NAME || 'mc-aldobot'}.onrender.com`
+    : `http://localhost:${HTTP_PORT}`;
+  
+  console.log(`[${new Date().toLocaleTimeString()}] Web Interface: ${baseUrl}/`);
+  console.log(`[${new Date().toLocaleTimeString()}] Health endpoint: ${baseUrl}/health`);
+  console.log(`[${new Date().toLocaleTimeString()}] Monitor endpoint: ${baseUrl}/health/monitor`);
+  console.log(`[${new Date().toLocaleTimeString()}] Ping endpoint: ${baseUrl}/ping`);
   console.log(`[${new Date().toLocaleTimeString()}] Servers history: ${serversHistory.length} servers saved`);
+  if (MONITOR_SERVICES.length > 0) {
+    console.log(`[${new Date().toLocaleTimeString()}] Monitoring services: ${MONITOR_SERVICES.join(', ')}`);
+  }
   console.log(`[${new Date().toLocaleTimeString()}] ========================================`);
   if (NODE_ENV === 'development') {
     console.log(`[${new Date().toLocaleTimeString()}] 🛠️  Development mode - nodemon is watching for changes`);
