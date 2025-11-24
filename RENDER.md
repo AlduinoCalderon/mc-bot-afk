@@ -51,3 +51,5 @@ El servicio se mantiene despierto automáticamente mediante:
 - Verifica que `NODE_ENV=production` esté configurado
 - Asegúrate de que el puerto esté usando `process.env.PORT` (ya está configurado)
 
+
+

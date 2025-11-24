@@ -1334,30 +1334,44 @@ const server = http.createServer(async (req, res) => {
         try {
           const bot = botManager.bot;
           const pos = bot.entity.position;
-          const radius = 16; // View radius in blocks
+          const radius = 12; // Reduced radius to avoid timeout (12x12x12 = 1728 blocks max)
+          const step = 2; // Sample every 2 blocks to reduce load
           
-          // Get nearby blocks
+          // Get nearby blocks (sampled to reduce load)
           const blocks = [];
-          for (let x = -radius; x <= radius; x++) {
-            for (let y = -radius; y <= radius; y++) {
-              for (let z = -radius; z <= radius; z++) {
-                const blockPos = bot.vec3(
-                  Math.floor(pos.x) + x,
-                  Math.floor(pos.y) + y,
-                  Math.floor(pos.z) + z
-                );
-                const block = bot.blockAt(blockPos);
-                if (block && block.name !== 'air' && block.name !== 'cave_air' && block.name !== 'void_air') {
-                  blocks.push({
-                    x: blockPos.x,
-                    y: blockPos.y,
-                    z: blockPos.z,
-                    name: block.name,
-                    displayName: block.displayName
-                  });
+          let blockCount = 0;
+          const maxBlocks = 500; // Limit total blocks to prevent timeout
+          
+          for (let x = -radius; x <= radius; x += step) {
+            for (let y = -radius; y <= radius; y += step) {
+              for (let z = -radius; z <= radius; z += step) {
+                if (blockCount >= maxBlocks) break;
+                
+                try {
+                  const blockPos = bot.vec3(
+                    Math.floor(pos.x) + x,
+                    Math.floor(pos.y) + y,
+                    Math.floor(pos.z) + z
+                  );
+                  const block = bot.blockAt(blockPos);
+                  if (block && block.name !== 'air' && block.name !== 'cave_air' && block.name !== 'void_air') {
+                    blocks.push({
+                      x: blockPos.x,
+                      y: blockPos.y,
+                      z: blockPos.z,
+                      name: block.name,
+                      displayName: block.displayName
+                    });
+                    blockCount++;
+                  }
+                } catch (err) {
+                  // Skip blocks that cause errors
+                  continue;
                 }
               }
+              if (blockCount >= maxBlocks) break;
             }
+            if (blockCount >= maxBlocks) break;
           }
 
           // Get nearby entities
@@ -1400,7 +1414,9 @@ const server = http.createServer(async (req, res) => {
             },
             blocks: blocks,
             entities: entities,
-            radius: radius
+            radius: radius,
+            step: step,
+            totalBlocks: blocks.length
           });
         } catch (err) {
           console.error(`[${new Date().toLocaleTimeString()}] [${botManager.name}] Error getting world data:`, err);
@@ -1526,33 +1542,46 @@ function handleWebSocketMessage(ws, data) {
         return;
       }
 
-      try {
-        const bot = worldBotManager.bot;
-        const pos = bot.entity.position;
-        const radius = 16;
-        
-        const blocks = [];
-        for (let x = -radius; x <= radius; x++) {
-          for (let y = -radius; y <= radius; y++) {
-            for (let z = -radius; z <= radius; z++) {
-              const blockPos = bot.vec3(
-                Math.floor(pos.x) + x,
-                Math.floor(pos.y) + y,
-                Math.floor(pos.z) + z
-              );
-              const block = bot.blockAt(blockPos);
-              if (block && block.name !== 'air' && block.name !== 'cave_air' && block.name !== 'void_air') {
-                blocks.push({
-                  x: blockPos.x,
-                  y: blockPos.y,
-                  z: blockPos.z,
-                  name: block.name,
-                  displayName: block.displayName
-                });
+        try {
+          const bot = worldBotManager.bot;
+          const pos = bot.entity.position;
+          const radius = 12; // Reduced radius
+          const step = 2; // Sample every 2 blocks
+          
+          const blocks = [];
+          let blockCount = 0;
+          const maxBlocks = 500; // Limit total blocks
+          
+          for (let x = -radius; x <= radius; x += step) {
+            for (let y = -radius; y <= radius; y += step) {
+              for (let z = -radius; z <= radius; z += step) {
+                if (blockCount >= maxBlocks) break;
+                
+                try {
+                  const blockPos = bot.vec3(
+                    Math.floor(pos.x) + x,
+                    Math.floor(pos.y) + y,
+                    Math.floor(pos.z) + z
+                  );
+                  const block = bot.blockAt(blockPos);
+                  if (block && block.name !== 'air' && block.name !== 'cave_air' && block.name !== 'void_air') {
+                    blocks.push({
+                      x: blockPos.x,
+                      y: blockPos.y,
+                      z: blockPos.z,
+                      name: block.name,
+                      displayName: block.displayName
+                    });
+                    blockCount++;
+                  }
+                } catch (err) {
+                  continue;
+                }
               }
+              if (blockCount >= maxBlocks) break;
             }
+            if (blockCount >= maxBlocks) break;
           }
-        }
 
         const entities = [];
         const nearbyEntities = Object.values(bot.entities);

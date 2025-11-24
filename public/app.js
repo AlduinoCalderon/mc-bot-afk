@@ -5,9 +5,15 @@ let currentBotId = null;
 
 // Initialize WebSocket connection
 function initWebSocket() {
+    // Close existing connection if any
+    if (ws && ws.readyState !== WebSocket.CLOSED) {
+        ws.close();
+    }
+    
     const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
     const wsUrl = `${protocol}//${window.location.host}`;
     
+    console.log('Connecting to WebSocket:', wsUrl);
     ws = new WebSocket(wsUrl);
     
     ws.onopen = () => {
@@ -17,8 +23,12 @@ function initWebSocket() {
     };
     
     ws.onmessage = (event) => {
-        const data = JSON.parse(event.data);
-        handleWebSocketMessage(data);
+        try {
+            const data = JSON.parse(event.data);
+            handleWebSocketMessage(data);
+        } catch (err) {
+            console.error('Error parsing WebSocket message:', err, event.data);
+        }
     };
     
     ws.onerror = (error) => {
@@ -26,11 +36,18 @@ function initWebSocket() {
         updateWSStatus(false);
     };
     
-    ws.onclose = () => {
-        console.log('WebSocket disconnected');
+    ws.onclose = (event) => {
+        console.log('WebSocket disconnected', event.code, event.reason);
         updateWSStatus(false);
+        // Clear any existing reconnect interval
+        if (reconnectInterval) {
+            clearInterval(reconnectInterval);
+        }
         // Attempt to reconnect after 3 seconds
-        reconnectInterval = setInterval(initWebSocket, 3000);
+        reconnectInterval = setInterval(() => {
+            console.log('Attempting to reconnect WebSocket...');
+            initWebSocket();
+        }, 3000);
     };
 }
 
@@ -624,10 +641,19 @@ function getBlockColor(blockName) {
 }
 
 function initTeleop3D() {
+    if (typeof THREE === 'undefined') {
+        console.error('Three.js not loaded! Please check the CDN link.');
+        alert('Error: Three.js no se cargó correctamente. Por favor recarga la página.');
+        return;
+    }
+    
     const container = document.getElementById('teleop-canvas-container');
     const canvas = document.getElementById('teleop-canvas');
     
-    if (!container || !canvas) return;
+    if (!container || !canvas) {
+        console.error('Teleop container or canvas not found');
+        return;
+    }
 
     // Scene
     teleopScene = new THREE.Scene();
@@ -775,15 +801,19 @@ function sendTeleopControl(action, pressed) {
 }
 
 function updateTeleopWorld(worldData) {
-    if (!teleopScene || !worldData) return;
+    if (!teleopScene || !worldData) {
+        console.warn('Cannot update teleop world: scene or data missing');
+        return;
+    }
     
-    teleopWorldData = worldData;
-    
-    // Clear existing blocks
-    teleopBlocks.forEach(block => {
-        teleopScene.remove(block);
-    });
-    teleopBlocks = [];
+    try {
+        teleopWorldData = worldData;
+        
+        // Clear existing blocks
+        teleopBlocks.forEach(block => {
+            teleopScene.remove(block);
+        });
+        teleopBlocks = [];
     
     // Add blocks
     worldData.blocks.forEach(blockData => {
@@ -856,6 +886,9 @@ function updateTeleopWorld(worldData) {
         teleopScene.add(sphere);
         teleopEntities.push(sphere);
     });
+    } catch (err) {
+        console.error('Error updating teleop world:', err);
+    }
 }
 
 function animateTeleop() {
@@ -870,12 +903,24 @@ function startTeleop(botId) {
         stopTeleop();
     }
     
+    if (!botId) {
+        console.error('Cannot start teleop: no bot ID provided');
+        return;
+    }
+    
     teleopActive = true;
     teleopBotId = botId;
     
     // Initialize 3D scene if not already done
     if (!teleopScene) {
-        initTeleop3D();
+        try {
+            initTeleop3D();
+        } catch (err) {
+            console.error('Error initializing 3D scene:', err);
+            alert('Error al inicializar la vista 3D: ' + err.message);
+            stopTeleop();
+            return;
+        }
     }
     
     // Request world data
