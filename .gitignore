@@ -4,13 +4,18 @@ npm-debug.log
 .env.local
 .DS_Store
 *.log
-.cursor/mcp.json
+.cursor/
 MCP_CONFIG.md
 bots-data.json
 servers-history.json
 *.csv
 .vscode/
 .idea/
-# Render API Keys - NO commitees este archivo
-render-api-keys.json
+*.swp
+*.swo
+*~
+.cache/
+dist/
+build/
+
 

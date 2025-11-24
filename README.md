@@ -1,93 +1,117 @@
-# 🤖 Minecraft Bot API Service
+# 🤖 Minecraft Bot Control Panel
 
-API multi-bot para gestionar bots de Minecraft con interfaz web responsiva, WebSockets, y soporte para mundos locales (LAN/Hamachi).
+Sistema de control de bots para Minecraft usando Mineflayer. Permite crear, gestionar y controlar múltiples bots de Minecraft desde una interfaz web moderna.
+
+## 🌐 Servicio en Línea
+
+**URL del Servicio:** [https://mc-aldobot.onrender.com](https://mc-aldobot.onrender.com)
+
+**Health Check:** [https://mc-aldobot.onrender.com/health](https://mc-aldobot.onrender.com/health)
+
+## ✨ Características
+
+- 🎮 **Control Multi-Bot**: Gestiona múltiples bots simultáneamente
+- 🌐 **Interfaz Web**: Panel de control moderno y responsive
+- 🎯 **Teleoperación 3D**: Vista en primera persona con controles estilo Minecraft
+- 📦 **Gestión de Inventario**: Ver y reorganizar items del bot
+- 🔄 **Auto-Reconexión**: Reconexión automática en caso de desconexión
+- 💾 **Persistencia**: Los bots se guardan automáticamente
+- 📊 **Monitoreo**: Health checks y estadísticas en tiempo real
 
 ## 🚀 Inicio Rápido
 
-### Desarrollo Local
+### Instalación
 
 ```bash
-# Instalar dependencias
 npm install
+```
 
-# Iniciar en modo desarrollo (con nodemon - auto-reload)
+### Desarrollo
+
+```bash
 npm run dev
 ```
 
-Abre `http://localhost:10000/` en tu navegador.
-
-### Producción (Render)
+### Producción
 
 ```bash
 npm start
 ```
 
-Render automáticamente usa `npm start` y configura los health checks.
+El servicio estará disponible en `http://localhost:10000`
 
-## 🎮 Conectarse a Mundos Locales
+## 📚 Documentación de API
 
-### Mundo Abierto a LAN
+La documentación completa de la API está disponible en formato OpenAPI:
 
-1. Abre tu mundo en Minecraft
-2. ESC → "Abrir a LAN"
-3. Anota el puerto (ej: 25565)
-4. Obtén tu IP local: `ipconfig` (Windows) o `ifconfig` (Linux/Mac)
-5. Crea un bot con:
-   - **Servidor:** Tu IP local (ej: `192.168.1.100`)
-   - **Puerto:** El puerto mostrado (ej: `25565`)
+- **OpenAPI Spec:** `openapi.json` (compatible con Swagger UI)
 
-### Hamachi (Red Virtual)
+Puedes visualizar la documentación usando herramientas como:
+- [Swagger Editor](https://editor.swagger.io/)
+- [Swagger UI](https://swagger.io/tools/swagger-ui/)
+- Extensiones de VS Code para OpenAPI
 
-1. Instala Hamachi en tu PC y en el PC del servidor
-2. Crea/Únete a una red
-3. Usa la IP de Hamachi (tipo `25.x.x.x` o `5.x.x.x`)
-4. Abre el mundo a LAN
-5. Crea el bot con la IP de Hamachi
+## 🛠️ Endpoints Principales
 
-## 📚 Documentación
-
-- **[DEVELOPMENT.md](./DEVELOPMENT.md)** - Guía completa de desarrollo local
-- **[API.md](./API.md)** - Documentación completa de la API
-
-## ✨ Características
-
-- ✅ Multi-bot support
-- ✅ Interfaz web responsiva
-- ✅ WebSockets para control en tiempo real
-- ✅ Health checks para Render
-- ✅ Soporte para mundos locales (LAN/Hamachi)
-- ✅ Auto-reconnect
-- ✅ Desarrollo con nodemon (auto-reload)
-
-## 🛠️ Scripts Disponibles
-
-- `npm run dev` - Desarrollo con nodemon (auto-reload)
-- `npm start` - Producción
-- `npm run prod` - Producción (alias)
-
-## 📝 Variables de Entorno
-
-- `PORT` - Puerto del servidor (default: 10000)
-- `NODE_ENV` - Entorno (development/production)
-- `MONITOR_SERVICES` - URLs de servicios para keep-awake (separadas por coma)
-
-## 🔗 Endpoints Principales
-
-- `GET /` - Interfaz web
-- `GET /health` - Health check
-- `GET /health/monitor` - Monitor para keep-awake
+- `GET /health` - Health check del servicio
 - `GET /ping` - Ping/pong
-- `GET /bots` - Listar bots
-- `POST /bots` - Crear bot
-- `GET /bots/:id` - Estado del bot
-- `DELETE /bots/:id` - Eliminar bot
+- `GET /bots` - Listar todos los bots
+- `POST /bots` - Crear un nuevo bot
+- `GET /bots/:id` - Obtener estado de un bot
+- `DELETE /bots/:id` - Eliminar un bot
+- `POST /bots/:id/move` - Controlar movimiento
+- `GET /bots/:id/inventory` - Ver inventario
+- `GET /bots/:id/world` - Obtener datos del mundo (teleoperación)
 
-Ver [API.md](./API.md) para documentación completa.
+## 🎮 Teleoperación
 
-## 💡 Tips
+El sistema incluye una vista 3D en primera persona que permite:
 
-- Usa `npm run dev` durante el desarrollo para ver cambios instantáneos
-- La interfaz web se actualiza automáticamente
-- Los bots se mantienen conectados durante el desarrollo
-- Render usa automáticamente `/health` para health checks
+- **Pantalla Completa**: Modo pantalla completa para mejor experiencia
+- **Controles Activables**: Botón para activar/desactivar controles
+- **Controles Estilo Minecraft**: WASD, Espacio, Shift, Ctrl, Mouse
+- **Inventario Interactivo**: Click para intercambiar items
+- **Vista Simplificada**: Solo muestra bloques cercanos para mejor rendimiento
 
+## 🔧 Configuración
+
+### Variables de Entorno
+
+- `PORT`: Puerto del servidor (default: 10000)
+- `NODE_ENV`: Entorno (development/production)
+- `MONITOR_SERVICES`: URLs de servicios a monitorear (separadas por comas)
+
+### Ejemplo
+
+```bash
+PORT=10000
+NODE_ENV=production
+MONITOR_SERVICES=https://service1.onrender.com/health,https://service2.onrender.com/health
+```
+
+## 📁 Estructura del Proyecto
+
+```
+mc-bot-afk/
+├── models/           # Modelos de datos
+├── controllers/      # Controladores HTTP
+├── services/         # Servicios de negocio
+├── routes/           # Rutas y enrutamiento
+├── utils/            # Utilidades
+├── public/           # Archivos estáticos (interfaz web)
+└── index.js         # Punto de entrada
+```
+
+## 🐛 Solución de Problemas
+
+Para problemas comunes, consulta [TROUBLESHOOTING.md](TROUBLESHOOTING.md)
+
+## 📝 Licencia
+
+MIT
+
+## 🔗 Enlaces
+
+- **Servicio:** https://mc-aldobot.onrender.com
+- **Health Check:** https://mc-aldobot.onrender.com/health
+- **API Docs:** Ver `openapi.json`

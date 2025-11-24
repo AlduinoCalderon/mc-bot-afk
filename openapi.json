@@ -1,0 +1,247 @@
+{
+  "openapi": "3.0.0",
+  "info": {
+    "title": "Minecraft Bot API",
+    "version": "2.0.0",
+    "description": "API para controlar bots de Minecraft usando Mineflayer",
+    "contact": {
+      "url": "https://mc-aldobot.onrender.com"
+    }
+  },
+  "servers": [
+    {
+      "url": "https://mc-aldobot.onrender.com",
+      "description": "Servidor de producción"
+    }
+  ],
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health check",
+        "description": "Verifica el estado del servicio",
+        "responses": {
+          "200": {
+            "description": "Servicio saludable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "status": { "type": "string", "example": "healthy" },
+                    "timestamp": { "type": "string" },
+                    "uptime": { "type": "number" },
+                    "bots": {
+                      "type": "object",
+                      "properties": {
+                        "total": { "type": "number" },
+                        "connected": { "type": "number" },
+                        "disconnected": { "type": "number" },
+                        "reconnecting": { "type": "number" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ping": {
+      "get": {
+        "summary": "Ping",
+        "description": "Endpoint de ping/pong",
+        "responses": {
+          "200": {
+            "description": "Pong",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "pong": { "type": "boolean" },
+                    "timestamp": { "type": "string" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/bots": {
+      "get": {
+        "summary": "Listar bots",
+        "description": "Obtiene la lista de todos los bots",
+        "responses": {
+          "200": {
+            "description": "Lista de bots",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "bots": {
+                      "type": "array",
+                      "items": { "type": "object" }
+                    },
+                    "count": { "type": "number" },
+                    "connected": { "type": "number" }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "summary": "Crear bot",
+        "description": "Crea un nuevo bot",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "serverHost"],
+                "properties": {
+                  "name": { "type": "string" },
+                  "serverHost": { "type": "string" },
+                  "serverPort": { "type": "number", "default": 25565 },
+                  "username": { "type": "string" },
+                  "version": { "type": "string" }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Bot creado exitosamente"
+          },
+          "400": {
+            "description": "Error en la solicitud"
+          }
+        }
+      }
+    },
+    "/bots/{id}": {
+      "get": {
+        "summary": "Obtener bot",
+        "description": "Obtiene el estado de un bot específico",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Estado del bot"
+          },
+          "404": {
+            "description": "Bot no encontrado"
+          }
+        }
+      },
+      "delete": {
+        "summary": "Eliminar bot",
+        "description": "Elimina un bot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Bot eliminado"
+          },
+          "404": {
+            "description": "Bot no encontrado"
+          }
+        }
+      }
+    },
+    "/bots/{id}/move": {
+      "post": {
+        "summary": "Mover bot",
+        "description": "Controla el movimiento del bot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["action"],
+                "properties": {
+                  "action": {
+                    "type": "string",
+                    "enum": ["forward", "back", "left", "right", "jump", "sprint", "sneak"]
+                  },
+                  "duration": { "type": "number", "default": 1000 }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Movimiento ejecutado"
+          }
+        }
+      }
+    },
+    "/bots/{id}/inventory": {
+      "get": {
+        "summary": "Obtener inventario",
+        "description": "Obtiene el inventario del bot",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inventario del bot"
+          }
+        }
+      }
+    },
+    "/bots/{id}/world": {
+      "get": {
+        "summary": "Obtener datos del mundo",
+        "description": "Obtiene datos del mundo para teleoperación",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string" }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Datos del mundo"
+          }
+        }
+      }
+    }
+  }
+}
+
